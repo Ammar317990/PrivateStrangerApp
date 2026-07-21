@@ -30,14 +30,27 @@ function VideoTile({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [paused, setPaused] = useState(false);
+  const [blockedByAutoplay, setBlockedByAutoplay] = useState(false);
 
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
+    const video = videoRef.current;
+    if (video) {
+      video.srcObject = stream;
+      if (stream) {
+        // autoPlay can be silently blocked by the browser (e.g. an
+        // unmuted remote video without a fresh user gesture) — detect
+        // that instead of leaving a blank frame with no explanation.
+        video.play().catch(() => setBlockedByAutoplay(true));
+      }
     }
     // A new stream (reconnect, new match, etc.) should always start live.
     setPaused(false);
+    setBlockedByAutoplay(false);
   }, [stream]);
+
+  function enablePlayback() {
+    videoRef.current?.play().then(() => setBlockedByAutoplay(false)).catch(() => {});
+  }
 
   function togglePause() {
     const video = videoRef.current;
@@ -65,7 +78,16 @@ function VideoTile({
           paused ? "blur-lg" : ""
         }`}
       />
-      {stream && (
+      {stream && blockedByAutoplay && (
+        <button
+          type="button"
+          onClick={enablePlayback}
+          className="absolute inset-0 flex items-center justify-center bg-black/70 text-sm font-medium text-white"
+        >
+          Tap to play
+        </button>
+      )}
+      {stream && !blockedByAutoplay && (
         <button
           type="button"
           onClick={togglePause}
