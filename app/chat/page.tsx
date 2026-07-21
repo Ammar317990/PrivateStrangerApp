@@ -38,6 +38,7 @@ export default function ChatPage() {
   const [directError, setDirectError] = useState<string | null>(null);
   const [directConnecting, setDirectConnecting] = useState(false);
   const [directMessages, setDirectMessages] = useState<ChatMessage[]>([]);
+  const [iceServersReady, setIceServersReady] = useState(false);
 
   const socketRef = useRef<ChatSocket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -59,6 +60,9 @@ export default function ChatPage() {
       })
       .catch(() => {
         // Leave iceServersRef unset — createPeerConnection falls back to STUN-only.
+      })
+      .finally(() => {
+        setIceServersReady(true);
       });
   }, [user]);
 
@@ -352,8 +356,8 @@ export default function ChatPage() {
           <VideoPanel localStream={localStream} remoteStream={remoteStream} cameraError={cameraError} />
           <MatchmakingOverlay
             status={status === "waiting" ? "waiting" : "idle"}
-            statusMessage={statusMessage}
-            disabled={directConnecting}
+            statusMessage={iceServersReady ? statusMessage : "Preparing connection…"}
+            disabled={directConnecting || !iceServersReady}
             onStart={handleStart}
           />
           <DirectChatStarter
