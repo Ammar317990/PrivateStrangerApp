@@ -209,12 +209,14 @@ export default function ChatPage() {
     });
 
     socket.on("webrtc-offer", async ({ sdp }) => {
+      console.log("[webrtc] received offer, pc exists:", !!pcRef.current);
       const pc = pcRef.current;
       if (!pc) return;
       await pc.setRemoteDescription(sdp);
       for (const candidate of pendingCandidatesRef.current) {
         await pc.addIceCandidate(candidate);
       }
+      console.log("[webrtc] flushed pending candidates:", pendingCandidatesRef.current.length);
       pendingCandidatesRef.current = [];
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -224,20 +226,24 @@ export default function ChatPage() {
     });
 
     socket.on("webrtc-answer", async ({ sdp }) => {
+      console.log("[webrtc] received answer, pc exists:", !!pcRef.current);
       const pc = pcRef.current;
       if (!pc) return;
       await pc.setRemoteDescription(sdp);
       for (const candidate of pendingCandidatesRef.current) {
         await pc.addIceCandidate(candidate);
       }
+      console.log("[webrtc] flushed pending candidates:", pendingCandidatesRef.current.length);
       pendingCandidatesRef.current = [];
     });
 
     socket.on("webrtc-ice-candidate", async ({ candidate }) => {
       const pc = pcRef.current;
+      const typeMatch = /typ (\w+)/.exec(candidate?.candidate || "");
+      console.log("[webrtc] received remote ice candidate", typeMatch?.[1], "pc exists:", !!pc, "remoteDescription set:", !!pc?.remoteDescription);
       if (!pc) return;
       if (pc.remoteDescription) {
-        await pc.addIceCandidate(candidate).catch((err) => console.error(err));
+        await pc.addIceCandidate(candidate).catch((err) => console.error("[webrtc] addIceCandidate failed:", err));
       } else {
         pendingCandidatesRef.current.push(candidate);
       }
