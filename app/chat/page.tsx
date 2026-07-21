@@ -127,6 +127,12 @@ export default function ChatPage() {
   const setupPeerConnection = useCallback((socket: ChatSocket, initiator: boolean) => {
     cleanupPeerConnection();
 
+    console.log("[webrtc] creating peer connection", {
+      iceServers: iceServersRef.current,
+      hasLocalStream: !!localStreamRef.current,
+      localTracks: localStreamRef.current?.getTracks().map((t) => t.kind),
+    });
+
     const pc = createPeerConnection(iceServersRef.current);
     pcRef.current = pc;
 
@@ -136,11 +142,21 @@ export default function ChatPage() {
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        console.log("[webrtc] local ice candidate", event.candidate.type, event.candidate.protocol);
         socket.emit("webrtc-ice-candidate", { candidate: event.candidate.toJSON() });
       }
     };
 
+    pc.oniceconnectionstatechange = () => {
+      console.log("[webrtc] iceConnectionState:", pc.iceConnectionState);
+    };
+
+    pc.onicegatheringstatechange = () => {
+      console.log("[webrtc] iceGatheringState:", pc.iceGatheringState);
+    };
+
     pc.ontrack = (event) => {
+      console.log("[webrtc] ontrack fired", event.track.kind);
       setRemoteStream(event.streams[0]);
     };
 
