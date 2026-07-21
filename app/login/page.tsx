@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
+  const something = "test";
   const router = useRouter();
   const { setUser } = useAuth();
   const [email, setEmail] = useState("");
