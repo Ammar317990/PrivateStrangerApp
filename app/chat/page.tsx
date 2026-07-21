@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { getTurnCredentials } from "@/lib/api";
 import { createSocket, type ChatSocket } from "@/lib/socket";
 import { createPeerConnection, attachLocalTracks } from "@/lib/webrtc";
 import VideoPanel from "@/components/VideoPanel";
@@ -42,12 +43,24 @@ export default function ChatPage() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const iceServersRef = useRef<RTCIceServer[] | undefined>(undefined);
   const directConversationIdRef = useRef<string | null>(null);
   const statusRef = useRef<Status>("idle");
 
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
+
+  useEffect(() => {
+    if (!user) return;
+    getTurnCredentials()
+      .then(({ iceServers }) => {
+        iceServersRef.current = iceServers;
+      })
+      .catch(() => {
+        // Leave iceServersRef unset — createPeerConnection falls back to STUN-only.
+      });
+  }, [user]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -110,7 +123,7 @@ export default function ChatPage() {
   const setupPeerConnection = useCallback((socket: ChatSocket, initiator: boolean) => {
     cleanupPeerConnection();
 
-    const pc = createPeerConnection();
+    const pc = createPeerConnection(iceServersRef.current);
     pcRef.current = pc;
 
     if (localStreamRef.current) {

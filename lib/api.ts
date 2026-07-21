@@ -65,4 +65,8 @@ export function logout() {
   return request<{ ok: true }>("/api/auth/logout", { method: "POST" });
 }
 
+export function getTurnCredentials() {
+  return request<{ iceServers: RTCIceServer[] }>("/api/turn/credentials");
+}
+
 export { ApiError, getBackendUrl };

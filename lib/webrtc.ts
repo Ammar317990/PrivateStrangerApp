@@ -1,7 +1,7 @@
-const ICE_SERVERS: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+const STUN_ONLY: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
 
-export function createPeerConnection(): RTCPeerConnection {
-  return new RTCPeerConnection({ iceServers: ICE_SERVERS });
+export function createPeerConnection(iceServers: RTCIceServer[] = STUN_ONLY): RTCPeerConnection {
+  return new RTCPeerConnection({ iceServers });
 }
 
 export function attachLocalTracks(pc: RTCPeerConnection, stream: MediaStream) {
