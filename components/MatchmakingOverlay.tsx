@@ -12,10 +12,10 @@ export default function MatchmakingOverlay({
   onStart: () => void;
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-lg border border-neutral-800 p-8 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-xl border border-border-subtle bg-surface/40 p-8 text-center">
       {status === "waiting" ? (
         <>
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-600 border-t-white" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-border-subtle border-t-accent" />
           <p className="text-neutral-300">Looking for a stranger…</p>
         </>
       ) : (
@@ -26,7 +26,7 @@ export default function MatchmakingOverlay({
           <button
             onClick={onStart}
             disabled={disabled}
-            className="rounded-full bg-white px-6 py-3 font-medium text-neutral-900 transition hover:bg-neutral-200 disabled:opacity-50"
+            className="rounded-full bg-accent px-6 py-3 font-medium text-accent-foreground transition hover:bg-accent-hover disabled:opacity-50"
           >
             Start chatting
           </button>

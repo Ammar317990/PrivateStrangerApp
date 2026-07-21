@@ -32,6 +32,17 @@ function VideoTile({
   const [paused, setPaused] = useState(false);
   const [blockedByAutoplay, setBlockedByAutoplay] = useState(false);
 
+  // A new stream (reconnect, new match, etc.) should always start live —
+  // reset during render (React's recommended pattern for state that
+  // depends on a prop) rather than in an effect, which would cause an
+  // extra cascading render.
+  const [prevStream, setPrevStream] = useState(stream);
+  if (stream !== prevStream) {
+    setPrevStream(stream);
+    setPaused(false);
+    setBlockedByAutoplay(false);
+  }
+
   useEffect(() => {
     const video = videoRef.current;
     if (video) {
@@ -43,9 +54,6 @@ function VideoTile({
         video.play().catch(() => setBlockedByAutoplay(true));
       }
     }
-    // A new stream (reconnect, new match, etc.) should always start live.
-    setPaused(false);
-    setBlockedByAutoplay(false);
   }, [stream]);
 
   function enablePlayback() {
@@ -68,7 +76,7 @@ function VideoTile({
   }
 
   return (
-    <div className="relative aspect-video overflow-hidden rounded-lg bg-neutral-900">
+    <div className="relative aspect-video overflow-hidden rounded-xl border border-border-subtle bg-surface">
       <video
         ref={videoRef}
         autoPlay
@@ -78,6 +86,11 @@ function VideoTile({
           paused ? "blur-lg" : ""
         }`}
       />
+      {!stream && (
+        <div className="absolute inset-0 flex items-center justify-center text-sm text-neutral-600">
+          Waiting for video…
+        </div>
+      )}
       {stream && blockedByAutoplay && (
         <button
           type="button"
@@ -92,12 +105,12 @@ function VideoTile({
           type="button"
           onClick={togglePause}
           aria-label={paused ? "Resume video" : "Pause video"}
-          className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white transition hover:bg-black/80"
+          className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white backdrop-blur transition hover:bg-black/80"
         >
           {paused ? <PlayIcon /> : <PauseIcon />}
         </button>
       )}
-      <span className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-0.5 text-xs">
+      <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium backdrop-blur">
         {label}
       </span>
     </div>
@@ -118,7 +131,7 @@ export default function VideoPanel({
       <VideoTile stream={remoteStream} label="Stranger" />
 
       {cameraError ? (
-        <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-neutral-900 p-2 text-center text-xs text-neutral-400">
+        <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl border border-border-subtle bg-surface p-2 text-center text-xs text-neutral-400">
           {cameraError}
         </div>
       ) : (

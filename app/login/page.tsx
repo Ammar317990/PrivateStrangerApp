@@ -8,7 +8,6 @@ import { ApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
-  const something = "test";
   const router = useRouter();
   const { setUser } = useAuth();
   const [email, setEmail] = useState("");
@@ -32,32 +31,41 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-4">
+    <main className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-4">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-1/4 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/20 blur-3xl"
+      />
+
       <form
         onSubmit={handleSubmit}
-        className="flex w-full max-w-sm flex-col gap-4 rounded-xl border border-neutral-800 p-6"
+        className="relative flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-border-subtle bg-surface/60 p-8 shadow-xl shadow-black/40 backdrop-blur"
       >
         <h1 className="text-xl font-semibold">Log in</h1>
 
-        <label className="flex flex-col gap-1 text-sm">
-          Email
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+            Email
+          </span>
           <input
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            className="rounded-lg border border-border-subtle bg-background/60 px-3 py-2.5 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm">
-          Password
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+            Password
+          </span>
           <input
             type="password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            className="rounded-lg border border-border-subtle bg-background/60 px-3 py-2.5 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
           />
         </label>
 
@@ -66,14 +74,14 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-900 transition hover:bg-neutral-200 disabled:opacity-50"
+          className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground transition hover:bg-accent-hover disabled:opacity-50"
         >
           {submitting ? "Logging in…" : "Log in"}
         </button>
 
         <p className="text-center text-sm text-neutral-400">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="text-white underline">
+          <Link href="/register" className="font-medium text-accent hover:text-accent-hover">
             Sign up
           </Link>
         </p>

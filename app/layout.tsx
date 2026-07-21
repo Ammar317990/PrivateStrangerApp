@@ -36,7 +36,7 @@ export default function RootLayout({
           this only silences the warning for this element, it doesn't affect
           hydration of anything inside it. */}
       <body
-        className="min-h-full flex flex-col bg-neutral-950 text-neutral-100"
+        className="min-h-full flex flex-col bg-background text-foreground"
         suppressHydrationWarning
       >
         <AuthProvider>

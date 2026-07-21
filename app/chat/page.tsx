@@ -339,14 +339,31 @@ export default function ChatPage() {
   }
 
   if (loading || !user) {
-    return <main className="flex flex-1 items-center justify-center">Loading…</main>;
+    return (
+      <main className="flex flex-1 items-center justify-center text-neutral-400">
+        Loading…
+      </main>
+    );
   }
 
   const inDirectChat = directConversationId !== null;
   const inRandomChat = status === "matched";
 
+  const statusPill =
+    status === "waiting" ? (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface px-2.5 py-1 text-xs font-medium text-neutral-400">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+        Waiting
+      </span>
+    ) : inRandomChat || inDirectChat ? (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
+        <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+        Connected
+      </span>
+    ) : null;
+
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 p-4">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">
           {inRandomChat
@@ -355,6 +372,7 @@ export default function ChatPage() {
               ? `Chatting with ${directPartnerEmail}`
               : "Stranger Chat"}
         </h1>
+        {statusPill}
       </div>
 
       {inDirectChat ? (
@@ -362,17 +380,19 @@ export default function ChatPage() {
           <ChatPanel messages={directMessages} onSend={handleSendDirect} disabled={false} />
           <button
             onClick={handleCloseDirect}
-            className="rounded-md border border-neutral-700 px-4 py-2 text-sm font-medium transition hover:border-neutral-500"
+            className="rounded-lg border border-border-subtle bg-surface px-4 py-2 text-sm font-medium transition hover:border-neutral-600"
           >
             Close chat
           </button>
         </>
       ) : inRandomChat ? (
-        <>
-          <VideoPanel localStream={localStream} remoteStream={remoteStream} cameraError={cameraError} />
+        <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-3">
+            <VideoPanel localStream={localStream} remoteStream={remoteStream} cameraError={cameraError} />
+            <ChatControls onSkip={handleSkip} onEnd={handleEnd} onReport={handleReport} />
+          </div>
           <ChatPanel messages={messages} onSend={handleSend} disabled={false} />
-          <ChatControls onSkip={handleSkip} onEnd={handleEnd} onReport={handleReport} />
-        </>
+        </div>
       ) : (
         <>
           <VideoPanel localStream={localStream} remoteStream={remoteStream} cameraError={cameraError} />
