@@ -64,7 +64,7 @@ export default function EmojiPicker({ onSelect }: { onSelect: (emoji: string) =>
         onClick={() => setOpen((o) => !o)}
         title="Emoji"
         aria-label="Insert emoji"
-        className={`flex h-[38px] w-9 flex-none items-center justify-center rounded-lg text-lg transition hover:bg-surface ${
+        className={`flex h-9 w-9 flex-none items-center justify-center rounded-lg text-lg transition hover:bg-surface ${
           open ? "bg-surface text-white" : "text-neutral-400"
         }`}
       >
@@ -72,7 +72,7 @@ export default function EmojiPicker({ onSelect }: { onSelect: (emoji: string) =>
       </button>
 
       {open && (
-        <div className="absolute bottom-11 left-0 z-30 flex h-72 w-72 flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface shadow-xl shadow-black/40">
+        <div className="absolute bottom-full left-0 z-30 mb-2 flex h-72 w-72 max-w-[85vw] flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface shadow-xl shadow-black/40">
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}

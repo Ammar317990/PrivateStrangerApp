@@ -24,7 +24,7 @@ export type ChatSendInput = {
 
 const NAME_COLORS = ["#60a5fa", "#34d399", "#fb7185", "#c084fc", "#f0a020", "#2dd4bf"];
 
-function colorFor(email: string) {
+export function colorFor(email: string) {
   let hash = 0;
   for (let i = 0; i < email.length; i++) hash = (hash * 31 + email.charCodeAt(i)) >>> 0;
   return NAME_COLORS[hash % NAME_COLORS.length];
@@ -124,11 +124,35 @@ function MediaBubble({
   onReveal: () => void;
 }) {
   const [expired, setExpired] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const isVideo = media.kind === "video";
   const isAudio = media.kind === "audio";
   const isOnce = media.mode === "once";
   const noun = isAudio ? "Voice message" : isVideo ? "Video" : "Photo";
   const verb = isAudio ? "listen" : "view";
+
+  // Chrome writes an unseekable/unknown duration into webm blobs recorded
+  // via MediaRecorder, so <audio> reports a bogus duration (e.g. a 4s clip
+  // showing as 1:47) until something forces it to rescan. Seeking near the
+  // end and back to 0 triggers that rescan — the standard workaround for
+  // this well-known Chromium bug (crbug.com/642012).
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    function fixDuration() {
+      if (!audio || Number.isFinite(audio.duration)) return;
+      audio.currentTime = 1e101;
+      const onTimeUpdate = () => {
+        audio.currentTime = 0;
+        audio.removeEventListener("timeupdate", onTimeUpdate);
+      };
+      audio.addEventListener("timeupdate", onTimeUpdate);
+    }
+
+    audio.addEventListener("loadedmetadata", fixDuration);
+    return () => audio.removeEventListener("loadedmetadata", fixDuration);
+  }, [media.id]);
 
   // "once" media the sender must never fetch — doing so would burn the
   // single view before the recipient even sees it (server enforces one
@@ -182,6 +206,7 @@ function MediaBubble({
             <MicIcon />
           </span>
           <audio
+            ref={audioRef}
             controls
             autoPlay={isOnce}
             src={src}
@@ -543,59 +568,66 @@ export default function ChatPanel({
         )}
 
         {!recording && (
-          <div className="flex items-end gap-1">
-            <EmojiPicker onSelect={insertEmoji} />
-            <button
-              type="button"
-              onClick={() => pickFile("photo")}
-              disabled={disabled}
-              title="Attach photo"
-              aria-label="Attach photo"
-              className="flex h-[38px] w-9 flex-none items-center justify-center rounded-lg text-neutral-400 transition hover:bg-surface hover:text-white disabled:opacity-40"
-            >
-              <PhotoIcon />
-            </button>
-            <button
-              type="button"
-              onClick={() => pickFile("video")}
-              disabled={disabled}
-              title="Attach video"
-              aria-label="Attach video"
-              className="flex h-[38px] w-9 flex-none items-center justify-center rounded-lg text-neutral-400 transition hover:bg-surface hover:text-white disabled:opacity-40"
-            >
-              <VideoIcon />
-            </button>
-            <button
-              type="button"
-              onClick={startRecording}
-              disabled={disabled}
-              title="Record a voice message"
-              aria-label="Record a voice message"
-              className="flex h-[38px] w-9 flex-none items-center justify-center rounded-lg text-neutral-400 transition hover:bg-surface hover:text-white disabled:opacity-40"
-            >
-              <MicIcon />
-            </button>
-            <GifPicker onSelect={sendGif} />
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              value={draft}
-              onChange={(e) => {
-                setDraft(e.target.value);
-                autoGrow();
-              }}
-              onKeyDown={handleKeyDown}
-              disabled={disabled}
-              placeholder={disabled ? "Not connected" : placeholder}
-              className="max-h-[120px] min-h-[38px] flex-1 resize-none rounded-lg border border-border-subtle bg-background/60 px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={!canSend}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:bg-accent-hover disabled:opacity-50"
-            >
-              {uploading ? "Sending…" : "Send"}
-            </button>
+          <div className="flex flex-col gap-1.5">
+            {/* Attach/emoji tools get their own row so they never compete
+                with the textarea for width on narrow screens. */}
+            <div className="flex items-center gap-1">
+              <EmojiPicker onSelect={insertEmoji} />
+              <button
+                type="button"
+                onClick={() => pickFile("photo")}
+                disabled={disabled}
+                title="Attach photo"
+                aria-label="Attach photo"
+                className="flex h-9 w-9 flex-none items-center justify-center rounded-lg text-neutral-400 transition hover:bg-surface hover:text-white disabled:opacity-40"
+              >
+                <PhotoIcon />
+              </button>
+              <button
+                type="button"
+                onClick={() => pickFile("video")}
+                disabled={disabled}
+                title="Attach video"
+                aria-label="Attach video"
+                className="flex h-9 w-9 flex-none items-center justify-center rounded-lg text-neutral-400 transition hover:bg-surface hover:text-white disabled:opacity-40"
+              >
+                <VideoIcon />
+              </button>
+              <button
+                type="button"
+                onClick={startRecording}
+                disabled={disabled}
+                title="Record a voice message"
+                aria-label="Record a voice message"
+                className="flex h-9 w-9 flex-none items-center justify-center rounded-lg text-neutral-400 transition hover:bg-surface hover:text-white disabled:opacity-40"
+              >
+                <MicIcon />
+              </button>
+              <GifPicker onSelect={sendGif} />
+            </div>
+
+            <div className="flex items-end gap-2">
+              <textarea
+                ref={textareaRef}
+                rows={1}
+                value={draft}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  autoGrow();
+                }}
+                onKeyDown={handleKeyDown}
+                disabled={disabled}
+                placeholder={disabled ? "Not connected" : placeholder}
+                className="max-h-[120px] min-h-[38px] flex-1 resize-none rounded-lg border border-border-subtle bg-background/60 px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={!canSend}
+                className="flex-none rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:bg-accent-hover disabled:opacity-50"
+              >
+                {uploading ? "Sending…" : "Send"}
+              </button>
+            </div>
           </div>
         )}
       </form>

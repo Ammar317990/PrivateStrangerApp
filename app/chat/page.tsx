@@ -7,7 +7,7 @@ import { getTurnCredentials } from "@/lib/api";
 import { createSocket, type ChatSocket } from "@/lib/socket";
 import { createPeerConnection, attachLocalTracks } from "@/lib/webrtc";
 import VideoPanel from "@/components/VideoPanel";
-import ChatPanel, { type ChatMessage, type ChatSendInput } from "@/components/ChatPanel";
+import ChatPanel, { colorFor, type ChatMessage, type ChatSendInput } from "@/components/ChatPanel";
 import MatchmakingOverlay from "@/components/MatchmakingOverlay";
 import ChatControls from "@/components/ChatControls";
 import DirectChatStarter from "@/components/DirectChatStarter";
@@ -98,6 +98,33 @@ function SidebarNavButton({
   );
 }
 
+function OnlineUsersRow({
+  emails,
+  onPick,
+}: {
+  emails: string[];
+  onPick: (email: string) => void;
+}) {
+  if (emails.length === 0) return null;
+  return (
+    <div className="flex items-center gap-2 overflow-x-auto rounded-xl border border-border-subtle bg-surface/40 p-2">
+      <span className="flex-none px-1 text-xs font-medium text-neutral-500">Chat 1:1 with</span>
+      {emails.map((email) => (
+        <button
+          key={email}
+          type="button"
+          onClick={() => onPick(email)}
+          title={`Start a private chat with ${email}`}
+          className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-xs font-bold text-white transition hover:scale-105"
+          style={{ backgroundColor: colorFor(email) }}
+        >
+          {email[0]?.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
@@ -106,6 +133,7 @@ export default function ChatPage() {
 
   const [liveMessages, setLiveMessages] = useState<ChatMessage[]>([]);
   const [liveOnlineCount, setLiveOnlineCount] = useState(0);
+  const [liveOnlineUsers, setLiveOnlineUsers] = useState<string[]>([]);
 
   const [status, setStatus] = useState<Status>("idle");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -281,8 +309,9 @@ export default function ChatPage() {
       ]);
     });
 
-    socket.on("live-chat-online-count", ({ count }) => {
+    socket.on("live-chat-online-count", ({ count, users }) => {
       setLiveOnlineCount(count);
+      setLiveOnlineUsers(users);
     });
 
     socket.on("waiting", () => {
@@ -490,7 +519,7 @@ export default function ChatPage() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 gap-4 p-4">
+    <div className="mx-auto flex w-full max-w-7xl flex-1 gap-4 p-4">
       <aside className="hidden w-52 flex-none flex-col gap-1 lg:flex">
         <SidebarNavButton
           active={section === "live"}
@@ -511,15 +540,15 @@ export default function ChatPage() {
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h1 className="text-lg font-semibold">
-              {section === "live"
-                ? "Live Chat"
-                : inRandomChat
-                  ? `Chatting with ${partnerEmail ?? "Stranger"}`
-                  : inDirectChat
-                    ? `Chatting with ${directPartnerEmail}`
+              {inDirectChat
+                ? `Chatting with ${directPartnerEmail}`
+                : section === "live"
+                  ? "Live Chat"
+                  : inRandomChat
+                    ? `Chatting with ${partnerEmail ?? "Stranger"}`
                     : "Video Chat"}
             </h1>
-            {section === "live" ? liveStatusPill : videoStatusPill}
+            {inDirectChat || section === "video" ? videoStatusPill : liveStatusPill}
           </div>
           <div className="flex gap-2 lg:hidden">
             <TabButton active={section === "live"} onClick={() => setSection("live")}>
@@ -531,14 +560,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {section === "live" ? (
-          <ChatPanel
-            messages={liveMessages}
-            onSend={handleSendLive}
-            disabled={false}
-            placeholder="Message the room…"
-          />
-        ) : inDirectChat ? (
+        {inDirectChat ? (
           <>
             <ChatPanel messages={directMessages} onSend={handleSendDirect} disabled={false} />
             <button
@@ -547,6 +569,21 @@ export default function ChatPage() {
             >
               Close chat
             </button>
+          </>
+        ) : section === "live" ? (
+          <>
+            <OnlineUsersRow
+              emails={liveOnlineUsers.filter((email) => email !== user.email)}
+              onPick={handleRequestDirectChat}
+            />
+            {directConnecting && <p className="px-1 text-xs text-neutral-500">Connecting…</p>}
+            {directError && <p className="px-1 text-xs text-red-400">{directError}</p>}
+            <ChatPanel
+              messages={liveMessages}
+              onSend={handleSendLive}
+              disabled={false}
+              placeholder="Message the room…"
+            />
           </>
         ) : inRandomChat ? (
           <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">

@@ -58,7 +58,7 @@ export default function GifPicker({ onSelect }: { onSelect: (url: string) => voi
         onClick={() => setOpen((o) => !o)}
         title="GIF"
         aria-label="Send a GIF"
-        className={`flex h-[38px] w-9 flex-none items-center justify-center rounded-lg text-[10px] font-bold tracking-tight transition hover:bg-surface ${
+        className={`flex h-9 w-9 flex-none items-center justify-center rounded-lg text-[10px] font-bold tracking-tight transition hover:bg-surface ${
           open ? "bg-surface text-white" : "text-neutral-400"
         }`}
       >
@@ -66,7 +66,7 @@ export default function GifPicker({ onSelect }: { onSelect: (url: string) => voi
       </button>
 
       {open && (
-        <div className="absolute bottom-11 left-0 z-30 flex h-80 w-80 flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface shadow-xl shadow-black/40">
+        <div className="absolute bottom-full left-0 z-30 mb-2 flex h-80 w-80 max-w-[85vw] flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface shadow-xl shadow-black/40">
           <input
             autoFocus
             value={query}

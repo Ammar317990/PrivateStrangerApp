@@ -39,7 +39,7 @@ export type ServerToClientEvents = {
     at: string;
     fromEmail: string;
   }) => void;
-  "live-chat-online-count": (data: { count: number }) => void;
+  "live-chat-online-count": (data: { count: number; users: string[] }) => void;
 };
 
 export type ClientToServerEvents = {
