@@ -13,7 +13,8 @@ import ChatControls from "@/components/ChatControls";
 import DirectChatStarter from "@/components/DirectChatStarter";
 
 type Status = "idle" | "waiting" | "matched";
-type Section = "live" | "video";
+type Section = "live" | "video" | "personal";
+type UnreadEntry = { conversationId: string; otherEmail: string; count: number };
 
 const REASON_MESSAGES: Record<string, string> = {
   skipped: "Stranger left to talk to someone else.",
@@ -63,6 +64,17 @@ function VideoChatIcon() {
   );
 }
 
+function PersonalChatsIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <circle cx="7" cy="7" r="3" />
+      <path d="M2.5 16.5c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" strokeLinecap="round" />
+      <circle cx="14.5" cy="6.5" r="2.2" />
+      <path d="M12.7 10.3c1.9.2 3.3 1.6 3.3 4.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function LogoutIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -84,7 +96,7 @@ function BrandRow() {
 
 function UserRow({ email, onSignOut }: { email: string; onSignOut: () => void }) {
   return (
-    <div className="flex items-center gap-2 border-t border-border-subtle pt-3">
+    <div className="mt-auto flex items-center gap-2 border-t border-border-subtle pt-3">
       <span
         className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-xs font-bold text-white"
         style={{ backgroundColor: colorFor(email) }}
@@ -126,10 +138,10 @@ function SidebarNavButton({
     >
       {icon}
       <span className="flex-1 text-left">{label}</span>
-      {typeof badge === "number" && (
+      {typeof badge === "number" && badge > 0 && (
         <span
           className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-            active ? "bg-black/20" : "bg-surface-hover text-neutral-400"
+            active ? "bg-black/20" : "bg-accent/20 text-accent"
           }`}
         >
           {badge}
@@ -139,111 +151,80 @@ function SidebarNavButton({
   );
 }
 
-function OnlineUsersRow({
-  emails,
-  onPick,
+function PersonalChatsView({
+  onlineEmails,
+  unreadEntries,
+  onStartChat,
+  onOpenChat,
 }: {
-  emails: string[];
-  onPick: (email: string) => void;
+  onlineEmails: string[];
+  unreadEntries: UnreadEntry[];
+  onStartChat: (email: string) => void;
+  onOpenChat: (conversationId: string) => void;
 }) {
-  if (emails.length === 0) return null;
-  return (
-    <div className="flex items-center gap-2 overflow-x-auto rounded-xl border border-border-subtle bg-surface/40 p-2">
-      <span className="flex-none px-1 text-xs font-medium text-neutral-500">Chat 1:1 with</span>
-      {emails.map((email) => (
-        <button
-          key={email}
-          type="button"
-          onClick={() => onPick(email)}
-          title={`Start a private chat with ${email}`}
-          className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-xs font-bold text-white transition hover:scale-105"
-          style={{ backgroundColor: colorFor(email) }}
-        >
-          {email[0]?.toUpperCase()}
-        </button>
-      ))}
-    </div>
-  );
-}
+  const unreadEmails = new Set(unreadEntries.map((e) => e.otherEmail));
+  const availableOnline = onlineEmails.filter((email) => !unreadEmails.has(email));
 
-type IncomingInvite = { requestId: string; fromEmail: string };
-
-function IncomingInviteBanner({
-  invite,
-  extraCount,
-  onAccept,
-  onDecline,
-}: {
-  invite: IncomingInvite;
-  extraCount: number;
-  onAccept: () => void;
-  onDecline: () => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-accent/30 bg-accent/10 p-3">
-      <span
-        className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-xs font-bold text-white"
-        style={{ backgroundColor: colorFor(invite.fromEmail) }}
-      >
-        {invite.fromEmail[0]?.toUpperCase()}
-      </span>
-      <p className="min-w-0 flex-1 text-sm">
-        <span className="font-semibold">{invite.fromEmail}</span> wants to chat with you
-        {extraCount > 0 && (
-          <span className="text-neutral-400"> · +{extraCount} more waiting</span>
-        )}
-      </p>
-      <div className="flex flex-none gap-2">
-        <button
-          onClick={onDecline}
-          className="rounded-lg border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-neutral-600"
-        >
-          Decline
-        </button>
-        <button
-          onClick={onAccept}
-          className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition hover:bg-accent-hover"
-        >
-          Accept
-        </button>
+  if (unreadEntries.length === 0 && availableOnline.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl border border-border-subtle bg-surface/40 p-8 text-center">
+        <p className="text-sm text-neutral-400">Nobody else is online right now.</p>
+        <p className="text-xs text-neutral-500">Check back later, or say hi in Live Chat.</p>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-function OnlineNowSidebar({
-  emails,
-  onPick,
-}: {
-  emails: string[];
-  onPick: (email: string) => void;
-}) {
-  if (emails.length === 0) return null;
   return (
-    <div className="flex h-full flex-col gap-1.5 overflow-hidden">
-      <div className="px-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
-        Online now
-      </div>
-      <div className="scrollbar-thin flex flex-1 flex-col gap-0.5 overflow-y-auto">
-        {emails.map((email) => (
-          <button
-            key={email}
-            type="button"
-            onClick={() => onPick(email)}
-            title={`Start a private chat with ${email}`}
-            className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-left text-xs text-neutral-400 transition hover:bg-surface hover:text-white"
-          >
-            <span
-              className="flex h-5 w-5 flex-none items-center justify-center rounded-full text-[10px] font-bold text-white"
-              style={{ backgroundColor: colorFor(email) }}
+    <div className="scrollbar-thin flex flex-1 flex-col gap-5 overflow-y-auto rounded-xl border border-border-subtle bg-surface/40 p-3">
+      {unreadEntries.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <p className="px-1.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+            Messaged you
+          </p>
+          {unreadEntries.map((entry) => (
+            <button
+              key={entry.conversationId}
+              onClick={() => onOpenChat(entry.conversationId)}
+              className="flex items-center gap-3 rounded-lg p-2 text-left transition hover:bg-surface"
             >
-              {email[0]?.toUpperCase()}
-            </span>
-            <span className="min-w-0 flex-1 truncate">{email}</span>
-            <span className="h-1.5 w-1.5 flex-none rounded-full bg-emerald-400" />
-          </button>
-        ))}
-      </div>
+              <span
+                className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-sm font-bold text-white"
+                style={{ backgroundColor: colorFor(entry.otherEmail) }}
+              >
+                {entry.otherEmail[0]?.toUpperCase()}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm">{entry.otherEmail}</span>
+              <span className="flex h-5 min-w-[20px] flex-none items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-accent-foreground">
+                {entry.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {availableOnline.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <p className="px-1.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+            Online now
+          </p>
+          {availableOnline.map((email) => (
+            <button
+              key={email}
+              onClick={() => onStartChat(email)}
+              className="flex items-center gap-3 rounded-lg p-2 text-left transition hover:bg-surface"
+            >
+              <span
+                className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-sm font-bold text-white"
+                style={{ backgroundColor: colorFor(email) }}
+              >
+                {email[0]?.toUpperCase()}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm text-neutral-300">{email}</span>
+              <span className="h-2 w-2 flex-none rounded-full bg-emerald-400" />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -257,6 +238,7 @@ export default function ChatPage() {
   const [liveMessages, setLiveMessages] = useState<ChatMessage[]>([]);
   const [liveOnlineCount, setLiveOnlineCount] = useState(0);
   const [liveOnlineUsers, setLiveOnlineUsers] = useState<string[]>([]);
+  const [unreadEntries, setUnreadEntries] = useState<UnreadEntry[]>([]);
 
   const [status, setStatus] = useState<Status>("idle");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -270,8 +252,6 @@ export default function ChatPage() {
   const [directPartnerEmail, setDirectPartnerEmail] = useState<string | null>(null);
   const [directError, setDirectError] = useState<string | null>(null);
   const [directConnecting, setDirectConnecting] = useState(false);
-  const [waitingForEmail, setWaitingForEmail] = useState<string | null>(null);
-  const [incomingInvites, setIncomingInvites] = useState<IncomingInvite[]>([]);
   const [directMessages, setDirectMessages] = useState<ChatMessage[]>([]);
   const [iceServersReady, setIceServersReady] = useState(false);
 
@@ -513,10 +493,10 @@ export default function ChatPage() {
       }
       directConversationIdRef.current = conversationId;
       setDirectConnecting(false);
-      setWaitingForEmail(null);
       setDirectError(null);
       setDirectConversationId(conversationId);
       setDirectPartnerEmail(partner.email);
+      setUnreadEntries((prev) => prev.filter((e) => e.otherEmail !== partner.email));
       setDirectMessages(
         messages.map((m) => ({
           text: m.text,
@@ -535,28 +515,19 @@ export default function ChatPage() {
 
     socket.on("direct-chat-error", ({ message }) => {
       setDirectConnecting(false);
-      setWaitingForEmail(null);
       setDirectError(message);
     });
 
-    socket.on("direct-chat-invite", ({ requestId, fromEmail }) => {
-      setIncomingInvites((prev) =>
-        prev.some((i) => i.requestId === requestId) ? prev : [...prev, { requestId, fromEmail }]
-      );
+    socket.on("direct-chat-unread-list", ({ entries }) => {
+      setUnreadEntries(entries);
     });
 
-    socket.on("direct-chat-invite-sent", ({ targetEmail }) => {
-      setDirectConnecting(false);
-      setWaitingForEmail(targetEmail);
-    });
-
-    socket.on("direct-chat-invite-expired", ({ requestId }) => {
-      setIncomingInvites((prev) => prev.filter((i) => i.requestId !== requestId));
-    });
-
-    socket.on("direct-chat-declined", ({ targetEmail }) => {
-      setWaitingForEmail(null);
-      setDirectError(`${targetEmail} declined the chat.`);
+    socket.on("direct-chat-unread", ({ conversationId, fromEmail, count }) => {
+      setUnreadEntries((prev) => {
+        const next = prev.filter((e) => e.conversationId !== conversationId);
+        next.push({ conversationId, otherEmail: fromEmail, count });
+        return next;
+      });
     });
 
     return () => {
@@ -619,14 +590,10 @@ export default function ChatPage() {
     socketRef.current?.emit("direct-chat-request", { email });
   }
 
-  function handleAcceptInvite(requestId: string) {
-    socketRef.current?.emit("direct-chat-respond", { requestId, accept: true });
-    setIncomingInvites((prev) => prev.filter((i) => i.requestId !== requestId));
-  }
-
-  function handleDeclineInvite(requestId: string) {
-    socketRef.current?.emit("direct-chat-respond", { requestId, accept: false });
-    setIncomingInvites((prev) => prev.filter((i) => i.requestId !== requestId));
+  function handleOpenConversation(conversationId: string) {
+    setDirectConnecting(true);
+    setDirectError(null);
+    socketRef.current?.emit("direct-chat-open", { conversationId });
   }
 
   function handleCloseDirect() {
@@ -659,6 +626,7 @@ export default function ChatPage() {
 
   const inDirectChat = directConversationId !== null;
   const inRandomChat = status === "matched";
+  const totalUnread = unreadEntries.reduce((sum, e) => sum + e.count, 0);
 
   const videoStatusPill =
     status === "waiting" ? (
@@ -680,6 +648,8 @@ export default function ChatPage() {
     </span>
   );
 
+  const headerPill = inDirectChat || section === "video" ? videoStatusPill : section === "live" ? liveStatusPill : null;
+
   return (
     <div className="flex h-full w-full flex-1">
       <aside className="hidden w-56 flex-none flex-col gap-1 border-r border-border-subtle bg-surface/30 p-4 lg:flex">
@@ -697,12 +667,13 @@ export default function ChatPage() {
           icon={<VideoChatIcon />}
           label="Video Chat"
         />
-        <div className="flex-1 overflow-hidden py-2">
-          <OnlineNowSidebar
-            emails={liveOnlineUsers.filter((email) => email !== user.email)}
-            onPick={handleRequestDirectChat}
-          />
-        </div>
+        <SidebarNavButton
+          active={section === "personal"}
+          onClick={() => setSection("personal")}
+          icon={<PersonalChatsIcon />}
+          label="Personal Chats"
+          badge={totalUnread}
+        />
         <UserRow email={user.email} onSignOut={handleSignOut} />
       </aside>
 
@@ -714,12 +685,14 @@ export default function ChatPage() {
                 ? `Chatting with ${directPartnerEmail}`
                 : section === "live"
                   ? "Live Chat"
-                  : inRandomChat
-                    ? `Chatting with ${partnerEmail ?? "Stranger"}`
-                    : "Video Chat"}
+                  : section === "personal"
+                    ? "Personal Chats"
+                    : inRandomChat
+                      ? `Chatting with ${partnerEmail ?? "Stranger"}`
+                      : "Video Chat"}
             </h1>
             <div className="flex items-center gap-2">
-              {inDirectChat || section === "video" ? videoStatusPill : liveStatusPill}
+              {headerPill}
               <button
                 onClick={handleSignOut}
                 className="rounded-lg border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-neutral-600 hover:text-white lg:hidden"
@@ -735,17 +708,11 @@ export default function ChatPage() {
             <TabButton active={section === "video"} onClick={() => setSection("video")}>
               Video Chat
             </TabButton>
+            <TabButton active={section === "personal"} onClick={() => setSection("personal")}>
+              Personal{totalUnread > 0 ? ` (${totalUnread})` : ""}
+            </TabButton>
           </div>
         </div>
-
-        {incomingInvites[0] && (
-          <IncomingInviteBanner
-            invite={incomingInvites[0]}
-            extraCount={incomingInvites.length - 1}
-            onAccept={() => handleAcceptInvite(incomingInvites[0].requestId)}
-            onDecline={() => handleDeclineInvite(incomingInvites[0].requestId)}
-          />
-        )}
 
         {inDirectChat ? (
           <>
@@ -758,23 +725,21 @@ export default function ChatPage() {
             </button>
           </>
         ) : section === "live" ? (
+          <ChatPanel
+            messages={liveMessages}
+            onSend={handleSendLive}
+            disabled={false}
+            placeholder="Message the room…"
+          />
+        ) : section === "personal" ? (
           <>
-            <div className="lg:hidden">
-              <OnlineUsersRow
-                emails={liveOnlineUsers.filter((email) => email !== user.email)}
-                onPick={handleRequestDirectChat}
-              />
-            </div>
-            {directConnecting && <p className="px-1 text-xs text-neutral-500">Sending request…</p>}
-            {waitingForEmail && (
-              <p className="px-1 text-xs text-neutral-500">Waiting for {waitingForEmail} to accept…</p>
-            )}
+            {directConnecting && <p className="px-1 text-xs text-neutral-500">Opening chat…</p>}
             {directError && <p className="px-1 text-xs text-red-400">{directError}</p>}
-            <ChatPanel
-              messages={liveMessages}
-              onSend={handleSendLive}
-              disabled={false}
-              placeholder="Message the room…"
+            <PersonalChatsView
+              onlineEmails={liveOnlineUsers.filter((email) => email !== user.email)}
+              unreadEntries={unreadEntries}
+              onStartChat={handleRequestDirectChat}
+              onOpenChat={handleOpenConversation}
             />
           </>
         ) : inRandomChat ? (
@@ -793,12 +758,12 @@ export default function ChatPage() {
             <MatchmakingOverlay
               status={status === "waiting" ? "waiting" : "idle"}
               statusMessage={iceServersReady ? statusMessage : "Preparing connection…"}
-              disabled={directConnecting || !iceServersReady}
+              disabled={!iceServersReady}
               onStart={handleStart}
             />
             <DirectChatStarter
               disabled={status === "waiting"}
-              connecting={directConnecting || waitingForEmail !== null}
+              connecting={directConnecting}
               error={directError}
               onStart={handleRequestDirectChat}
             />

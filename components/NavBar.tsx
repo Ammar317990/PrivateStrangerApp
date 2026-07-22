@@ -17,7 +17,11 @@ export default function NavBar() {
   // The chat page is a full-bleed dashboard with its own sidebar (brand,
   // nav, account controls) — a second global nav bar on top of it would
   // just eat vertical space and duplicate the logo/logout it already has.
-  if (pathname?.startsWith("/chat")) return null;
+  // Login/register are their own full-screen moments too, with the brand
+  // mark built into the card itself.
+  if (pathname?.startsWith("/chat") || pathname === "/login" || pathname === "/register") {
+    return null;
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-border-subtle bg-background/80 backdrop-blur">

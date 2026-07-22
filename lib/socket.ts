@@ -21,10 +21,10 @@ export type ServerToClientEvents = {
     messages: { text: string; media?: MediaRef; gifUrl?: string; at: string; fromEmail: string }[];
   }) => void;
   "direct-chat-error": (data: { message: string }) => void;
-  "direct-chat-invite": (data: { requestId: string; fromEmail: string }) => void;
-  "direct-chat-invite-sent": (data: { requestId: string; targetEmail: string }) => void;
-  "direct-chat-invite-expired": (data: { requestId: string }) => void;
-  "direct-chat-declined": (data: { targetEmail: string }) => void;
+  "direct-chat-unread-list": (data: {
+    entries: { conversationId: string; otherEmail: string; count: number }[];
+  }) => void;
+  "direct-chat-unread": (data: { conversationId: string; fromEmail: string; count: number }) => void;
   "direct-message": (data: {
     conversationId: string;
     text: string;
@@ -56,7 +56,7 @@ export type ClientToServerEvents = {
   "webrtc-ice-candidate": (data: { candidate: RTCIceCandidateInit }) => void;
   "report-user": (data: { reason?: string }) => void;
   "direct-chat-request": (data: { email: string }) => void;
-  "direct-chat-respond": (data: { requestId: string; accept: boolean }) => void;
+  "direct-chat-open": (data: { conversationId: string }) => void;
   "direct-message": (data: {
     conversationId: string;
     text?: string;

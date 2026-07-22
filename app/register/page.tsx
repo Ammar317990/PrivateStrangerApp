@@ -6,6 +6,7 @@ import Link from "next/link";
 import * as api from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import ChatBackdrop from "@/components/ChatBackdrop";
 
 function MailIcon() {
   return (
@@ -50,6 +51,7 @@ export default function RegisterPage() {
 
   return (
     <main className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-10">
+      <ChatBackdrop />
       <div
         aria-hidden
         className="pointer-events-none absolute left-1/2 top-[15%] h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/20 blur-3xl"
