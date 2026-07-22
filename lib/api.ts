@@ -69,7 +69,7 @@ export function getTurnCredentials() {
   return request<{ iceServers: RTCIceServer[] }>("/api/turn/credentials");
 }
 
-export type MediaKind = "photo" | "video";
+export type MediaKind = "photo" | "video" | "audio";
 export type MediaMode = "keep" | "once";
 
 // Not routed through request() — a multipart body needs the browser to set
@@ -95,6 +95,13 @@ export async function uploadMedia(file: File, mode: MediaMode) {
 
 export function getMediaUrl(id: string): string {
   return `${getBackendUrl()}/api/media/${id}`;
+}
+
+export type GifResult = { id: string; url: string; previewUrl: string; width: number; height: number };
+
+export function searchGifs(query: string) {
+  const q = query.trim();
+  return request<{ results: GifResult[] }>(`/api/gifs${q ? `?q=${encodeURIComponent(q)}` : ""}`);
 }
 
 export { ApiError, getBackendUrl };

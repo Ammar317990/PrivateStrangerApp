@@ -45,6 +45,59 @@ function TabButton({
   );
 }
 
+function LiveChatIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M3 8.5L10 3l7 5.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4.5 8v7a1 1 0 001 1h9a1 1 0 001-1V8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function VideoChatIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="2.5" y="5.5" width="10" height="9" rx="2" />
+      <path d="M12.5 9l5-3v8l-5-3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SidebarNavButton({
+  active,
+  onClick,
+  icon,
+  label,
+  badge,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  badge?: number;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+        active ? "bg-accent text-accent-foreground" : "text-neutral-400 hover:bg-surface hover:text-white"
+      }`}
+    >
+      {icon}
+      <span className="flex-1 text-left">{label}</span>
+      {typeof badge === "number" && (
+        <span
+          className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+            active ? "bg-black/20" : "bg-surface-hover text-neutral-400"
+          }`}
+        >
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
@@ -216,12 +269,16 @@ export default function ChatPage() {
           fromSelf: m.fromEmail === user.email,
           fromEmail: m.fromEmail,
           media: m.media,
+          gifUrl: m.gifUrl,
         }))
       );
     });
 
-    socket.on("live-chat-message", ({ text, at, fromEmail, media }) => {
-      setLiveMessages((prev) => [...prev, { text, at, fromSelf: fromEmail === user.email, fromEmail, media }]);
+    socket.on("live-chat-message", ({ text, at, fromEmail, media, gifUrl }) => {
+      setLiveMessages((prev) => [
+        ...prev,
+        { text, at, fromSelf: fromEmail === user.email, fromEmail, media, gifUrl },
+      ]);
     });
 
     socket.on("live-chat-online-count", ({ count }) => {
@@ -248,8 +305,8 @@ export default function ChatPage() {
       setStatusMessage(REASON_MESSAGES[reason] || "Chat ended.");
     });
 
-    socket.on("receive-message", ({ text, media, at }) => {
-      setMessages((prev) => [...prev, { text, media, at, fromSelf: false }]);
+    socket.on("receive-message", ({ text, media, gifUrl, at }) => {
+      setMessages((prev) => [...prev, { text, media, gifUrl, at, fromSelf: false }]);
     });
 
     socket.on("webrtc-offer", async ({ sdp }) => {
@@ -311,13 +368,14 @@ export default function ChatPage() {
           at: m.at,
           fromSelf: m.fromEmail === user.email,
           media: m.media,
+          gifUrl: m.gifUrl,
         }))
       );
     });
 
-    socket.on("direct-message", ({ conversationId, text, at, media }) => {
+    socket.on("direct-message", ({ conversationId, text, at, media, gifUrl }) => {
       if (directConversationIdRef.current !== conversationId) return;
-      setDirectMessages((prev) => [...prev, { text, media, at, fromSelf: false }]);
+      setDirectMessages((prev) => [...prev, { text, media, gifUrl, at, fromSelf: false }]);
     });
 
     socket.on("direct-chat-error", ({ message }) => {
@@ -360,15 +418,18 @@ export default function ChatPage() {
     socketRef.current?.emit("report-user", {});
   }
 
-  function handleSend({ text, media }: ChatSendInput) {
-    socketRef.current?.emit("send-message", { text, media });
-    setMessages((prev) => [...prev, { text: text || "", media, at: new Date().toISOString(), fromSelf: true }]);
+  function handleSend({ text, media, gifUrl }: ChatSendInput) {
+    socketRef.current?.emit("send-message", { text, media, gifUrl });
+    setMessages((prev) => [
+      ...prev,
+      { text: text || "", media, gifUrl, at: new Date().toISOString(), fromSelf: true },
+    ]);
   }
 
-  function handleSendLive({ text, media }: ChatSendInput) {
+  function handleSendLive({ text, media, gifUrl }: ChatSendInput) {
     // No optimistic append: the server broadcasts back to every socket in
     // the lobby, sender included, so appending locally would double it up.
-    socketRef.current?.emit("live-chat-message", { text, media });
+    socketRef.current?.emit("live-chat-message", { text, media, gifUrl });
   }
 
   function handleRequestDirectChat(email: string) {
@@ -388,12 +449,12 @@ export default function ChatPage() {
     setDirectError(null);
   }
 
-  function handleSendDirect({ text, media }: ChatSendInput) {
+  function handleSendDirect({ text, media, gifUrl }: ChatSendInput) {
     if (!directConversationId) return;
-    socketRef.current?.emit("direct-message", { conversationId: directConversationId, text, media });
+    socketRef.current?.emit("direct-message", { conversationId: directConversationId, text, media, gifUrl });
     setDirectMessages((prev) => [
       ...prev,
-      { text: text || "", media, at: new Date().toISOString(), fromSelf: true },
+      { text: text || "", media, gifUrl, at: new Date().toISOString(), fromSelf: true },
     ]);
   }
 
@@ -429,74 +490,92 @@ export default function ChatPage() {
   );
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-4">
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold">
-            {section === "live"
-              ? "Live Chat"
-              : inRandomChat
-                ? `Chatting with ${partnerEmail ?? "Stranger"}`
-                : inDirectChat
-                  ? `Chatting with ${directPartnerEmail}`
-                  : "Video Chat"}
-          </h1>
-          {section === "live" ? liveStatusPill : videoStatusPill}
-        </div>
-        <div className="flex gap-2">
-          <TabButton active={section === "live"} onClick={() => setSection("live")}>
-            Live Chat
-          </TabButton>
-          <TabButton active={section === "video"} onClick={() => setSection("video")}>
-            Video Chat
-          </TabButton>
-        </div>
-      </div>
-
-      {section === "live" ? (
-        <ChatPanel
-          messages={liveMessages}
-          onSend={handleSendLive}
-          disabled={false}
-          placeholder="Message the room…"
+    <div className="mx-auto flex w-full max-w-6xl flex-1 gap-4 p-4">
+      <aside className="hidden w-52 flex-none flex-col gap-1 lg:flex">
+        <SidebarNavButton
+          active={section === "live"}
+          onClick={() => setSection("live")}
+          icon={<LiveChatIcon />}
+          label="Live Chat"
+          badge={liveOnlineCount}
         />
-      ) : inDirectChat ? (
-        <>
-          <ChatPanel messages={directMessages} onSend={handleSendDirect} disabled={false} />
-          <button
-            onClick={handleCloseDirect}
-            className="rounded-lg border border-border-subtle bg-surface px-4 py-2 text-sm font-medium transition hover:border-neutral-600"
-          >
-            Close chat
-          </button>
-        </>
-      ) : inRandomChat ? (
-        <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-          <div className="flex flex-col gap-3">
-            <VideoPanel localStream={localStream} remoteStream={remoteStream} cameraError={cameraError} />
-            <ChatControls onSkip={handleSkip} onEnd={handleEnd} onReport={handleReport} />
+        <SidebarNavButton
+          active={section === "video"}
+          onClick={() => setSection("video")}
+          icon={<VideoChatIcon />}
+          label="Video Chat"
+        />
+      </aside>
+
+      <main className="flex min-w-0 flex-1 flex-col gap-4">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h1 className="text-lg font-semibold">
+              {section === "live"
+                ? "Live Chat"
+                : inRandomChat
+                  ? `Chatting with ${partnerEmail ?? "Stranger"}`
+                  : inDirectChat
+                    ? `Chatting with ${directPartnerEmail}`
+                    : "Video Chat"}
+            </h1>
+            {section === "live" ? liveStatusPill : videoStatusPill}
           </div>
-          <ChatPanel messages={messages} onSend={handleSend} disabled={false} />
+          <div className="flex gap-2 lg:hidden">
+            <TabButton active={section === "live"} onClick={() => setSection("live")}>
+              Live Chat
+            </TabButton>
+            <TabButton active={section === "video"} onClick={() => setSection("video")}>
+              Video Chat
+            </TabButton>
+          </div>
         </div>
-      ) : (
-        <>
-          {status !== "idle" && (
-            <VideoPanel localStream={localStream} remoteStream={remoteStream} cameraError={cameraError} />
-          )}
-          <MatchmakingOverlay
-            status={status === "waiting" ? "waiting" : "idle"}
-            statusMessage={iceServersReady ? statusMessage : "Preparing connection…"}
-            disabled={directConnecting || !iceServersReady}
-            onStart={handleStart}
+
+        {section === "live" ? (
+          <ChatPanel
+            messages={liveMessages}
+            onSend={handleSendLive}
+            disabled={false}
+            placeholder="Message the room…"
           />
-          <DirectChatStarter
-            disabled={status === "waiting"}
-            connecting={directConnecting}
-            error={directError}
-            onStart={handleRequestDirectChat}
-          />
-        </>
-      )}
-    </main>
+        ) : inDirectChat ? (
+          <>
+            <ChatPanel messages={directMessages} onSend={handleSendDirect} disabled={false} />
+            <button
+              onClick={handleCloseDirect}
+              className="rounded-lg border border-border-subtle bg-surface px-4 py-2 text-sm font-medium transition hover:border-neutral-600"
+            >
+              Close chat
+            </button>
+          </>
+        ) : inRandomChat ? (
+          <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+            <div className="flex flex-col gap-3">
+              <VideoPanel localStream={localStream} remoteStream={remoteStream} cameraError={cameraError} />
+              <ChatControls onSkip={handleSkip} onEnd={handleEnd} onReport={handleReport} />
+            </div>
+            <ChatPanel messages={messages} onSend={handleSend} disabled={false} />
+          </div>
+        ) : (
+          <>
+            {status !== "idle" && (
+              <VideoPanel localStream={localStream} remoteStream={remoteStream} cameraError={cameraError} />
+            )}
+            <MatchmakingOverlay
+              status={status === "waiting" ? "waiting" : "idle"}
+              statusMessage={iceServersReady ? statusMessage : "Preparing connection…"}
+              disabled={directConnecting || !iceServersReady}
+              onStart={handleStart}
+            />
+            <DirectChatStarter
+              disabled={status === "waiting"}
+              connecting={directConnecting}
+              error={directError}
+              onStart={handleRequestDirectChat}
+            />
+          </>
+        )}
+      </main>
+    </div>
   );
 }

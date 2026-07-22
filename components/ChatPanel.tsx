@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { getMediaUrl, uploadMedia, ApiError, type MediaKind, type MediaMode } from "@/lib/api";
+import EmojiPicker from "@/components/EmojiPicker";
+import GifPicker from "@/components/GifPicker";
 
 export type MediaRef = { id: string; kind: MediaKind; mode: MediaMode; viewed?: boolean };
 
@@ -11,9 +13,14 @@ export type ChatMessage = {
   fromSelf: boolean;
   fromEmail?: string;
   media?: MediaRef;
+  gifUrl?: string;
 };
 
-export type ChatSendInput = { text?: string; media?: { id: string; kind: MediaKind; mode: MediaMode } };
+export type ChatSendInput = {
+  text?: string;
+  media?: { id: string; kind: MediaKind; mode: MediaMode };
+  gifUrl?: string;
+};
 
 const NAME_COLORS = ["#60a5fa", "#34d399", "#fb7185", "#c084fc", "#f0a020", "#2dd4bf"];
 
@@ -45,6 +52,15 @@ function VideoIcon() {
   );
 }
 
+function MicIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="7" y="2.5" width="6" height="10" rx="3" />
+      <path d="M4.5 9.5a5.5 5.5 0 0011 0M10 15v2.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function FlameIcon({ size = 14 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="currentColor">
@@ -61,6 +77,41 @@ function XIcon() {
   );
 }
 
+function TrashIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M4 6h12M8 6V4.5a1 1 0 011-1h2a1 1 0 011 1V6m-7 0l.7 9.1a1 1 0 001 .9h5.6a1 1 0 001-.9L14 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 10.5l4 4 8-9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function formatDuration(totalSeconds: number) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function GifBubble({ url, fromSelf }: { url: string; fromSelf: boolean }) {
+  return (
+    <div
+      className={`w-56 overflow-hidden rounded-2xl border border-border-subtle bg-surface ${
+        fromSelf ? "rounded-br-sm" : "rounded-bl-sm"
+      }`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt="GIF" className="max-h-64 w-full object-cover" />
+    </div>
+  );
+}
+
 function MediaBubble({
   media,
   fromSelf,
@@ -74,7 +125,10 @@ function MediaBubble({
 }) {
   const [expired, setExpired] = useState(false);
   const isVideo = media.kind === "video";
+  const isAudio = media.kind === "audio";
   const isOnce = media.mode === "once";
+  const noun = isAudio ? "Voice message" : isVideo ? "Video" : "Photo";
+  const verb = isAudio ? "listen" : "view";
 
   // "once" media the sender must never fetch — doing so would burn the
   // single view before the recipient even sees it (server enforces one
@@ -94,7 +148,7 @@ function MediaBubble({
     return (
       <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm border border-border-subtle bg-surface px-3 py-2 text-xs text-neutral-500">
         <FlameIcon />
-        {isVideo ? "Video" : "Photo"} already viewed
+        {noun} already {isAudio ? "played" : "viewed"}
       </div>
     );
   }
@@ -111,14 +165,39 @@ function MediaBubble({
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-400 text-amber-950">
           <FlameIcon size={18} />
         </span>
-        <span className="text-xs font-semibold">Tap to view</span>
-        <span className="text-[11px] text-neutral-400">Disappears after viewing</span>
+        <span className="text-xs font-semibold">Tap to {verb}</span>
+        <span className="text-[11px] text-neutral-400">Disappears after {isAudio ? "playing" : "viewing"}</span>
       </button>
     );
   }
 
   const src = getMediaUrl(media.id);
   const rounding = fromSelf ? "rounded-br-sm" : "rounded-bl-sm";
+
+  if (isAudio) {
+    return (
+      <div className={`flex w-64 flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface ${rounding}`}>
+        <div className="flex items-center gap-2 p-2.5">
+          <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-surface-hover text-accent">
+            <MicIcon />
+          </span>
+          <audio
+            controls
+            autoPlay={isOnce}
+            src={src}
+            className="h-9 flex-1"
+            onError={() => isOnce && setExpired(true)}
+          />
+        </div>
+        {isOnce && (
+          <div className="flex items-center gap-1.5 border-t border-border-subtle px-2.5 py-1.5 text-[11px] text-amber-400">
+            <FlameIcon size={11} />
+            Disappears after you close or leave this chat
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`w-56 overflow-hidden rounded-2xl border border-border-subtle bg-surface ${rounding}`}>
@@ -166,21 +245,52 @@ export default function ChatPanel({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
+  const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
 
   const listRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      recordingStreamRef.current?.getTracks().forEach((t) => t.stop());
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, []);
 
   function autoGrow() {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT) + "px";
+  }
+
+  function insertEmoji(emoji: string) {
+    const el = textareaRef.current;
+    const start = el?.selectionStart ?? draft.length;
+    const end = el?.selectionEnd ?? draft.length;
+    const next = draft.slice(0, start) + emoji + draft.slice(end);
+    setDraft(next);
+    requestAnimationFrame(() => {
+      el?.focus();
+      if (el) el.selectionStart = el.selectionEnd = start + emoji.length;
+      autoGrow();
+    });
+  }
+
+  function sendGif(url: string) {
+    if (disabled || uploading) return;
+    onSend({ gifUrl: url });
   }
 
   function pickFile(kind: MediaKind) {
@@ -199,6 +309,64 @@ export default function ChatPanel({
     setUploadError(null);
     setAttachedFile(file);
     setAttachMode("keep");
+  }
+
+  function clearRecordingTimer() {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  }
+
+  async function startRecording() {
+    setUploadError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordingStreamRef.current = stream;
+      const recorder = new MediaRecorder(stream);
+      recordedChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        recordingStreamRef.current?.getTracks().forEach((t) => t.stop());
+        recordingStreamRef.current = null;
+        const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        const ext = blob.type.includes("mp4") ? "m4a" : "webm";
+        setAttachedFile(new File([blob], `voice-message.${ext}`, { type: blob.type }));
+        setAttachMode("keep");
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setRecording(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+    } catch {
+      setUploadError("Microphone unavailable");
+    }
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+    setRecording(false);
+    clearRecordingTimer();
+  }
+
+  function cancelRecording() {
+    const recorder = mediaRecorderRef.current;
+    if (recorder) {
+      recorder.onstop = () => {
+        recordingStreamRef.current?.getTracks().forEach((t) => t.stop());
+        recordingStreamRef.current = null;
+      };
+      recorder.stop();
+    }
+    mediaRecorderRef.current = null;
+    setRecording(false);
+    clearRecordingTimer();
   }
 
   async function send() {
@@ -239,6 +407,7 @@ export default function ChatPanel({
   }
 
   const canSend = !disabled && !uploading && (draft.trim().length > 0 || attachedFile !== null);
+  const isVoiceAttachment = attachedFile?.name.startsWith("voice-message");
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface/40">
@@ -264,6 +433,7 @@ export default function ChatPanel({
                 onReveal={() => setRevealed((prev) => new Set(prev).add(i))}
               />
             )}
+            {m.gifUrl && <GifBubble url={m.gifUrl} fromSelf={m.fromSelf} />}
             {m.text && (
               <div
                 className={`max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-sm ${
@@ -297,90 +467,137 @@ export default function ChatPanel({
 
         {uploadError && <p className="px-1 text-xs text-red-400">{uploadError}</p>}
 
-        {attachedFile && (
-          <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface p-1.5">
-            <span className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-surface-hover text-neutral-400">
-              {attachedFile.type.startsWith("video") ? <VideoIcon /> : <PhotoIcon />}
+        {recording ? (
+          <div className="flex items-center gap-2 rounded-lg border border-red-900/50 bg-red-950/20 p-1.5">
+            <span className="h-2.5 w-2.5 flex-none animate-pulse rounded-full bg-red-500" />
+            <span className="flex-1 text-xs font-medium text-red-300">
+              Recording… {formatDuration(recordingSeconds)}
             </span>
-            <div className="min-w-0 flex-1 text-xs">
-              <p className="truncate font-medium">{attachedFile.name}</p>
-              <p className="text-neutral-500">
-                {attachMode === "once" ? "Sends as view once" : "Sends and stays in the thread"}
-              </p>
-            </div>
-            <div className="flex flex-none rounded-full border border-border-subtle bg-background p-0.5">
-              <button
-                type="button"
-                onClick={() => setAttachMode("keep")}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-                  attachMode === "keep" ? "bg-accent/20 text-accent" : "text-neutral-500"
-                }`}
-              >
-                Keep
-              </button>
-              <button
-                type="button"
-                onClick={() => setAttachMode("once")}
-                className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-                  attachMode === "once" ? "bg-amber-400/20 text-amber-400" : "text-neutral-500"
-                }`}
-              >
-                <FlameIcon size={11} /> Once
-              </button>
-            </div>
             <button
               type="button"
-              onClick={() => setAttachedFile(null)}
-              className="flex-none rounded-md p-1.5 text-neutral-500 hover:bg-surface-hover hover:text-white"
-              aria-label="Remove attachment"
+              onClick={cancelRecording}
+              aria-label="Cancel recording"
+              className="flex-none rounded-md p-1.5 text-neutral-400 hover:bg-surface-hover hover:text-white"
             >
-              <XIcon />
+              <TrashIcon />
+            </button>
+            <button
+              type="button"
+              onClick={stopRecording}
+              aria-label="Stop recording"
+              className="flex-none rounded-md bg-accent p-1.5 text-accent-foreground hover:bg-accent-hover"
+            >
+              <CheckIcon />
+            </button>
+          </div>
+        ) : (
+          attachedFile && (
+            <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface p-1.5">
+              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-surface-hover text-neutral-400">
+                {isVoiceAttachment ? (
+                  <MicIcon />
+                ) : attachedFile.type.startsWith("video") ? (
+                  <VideoIcon />
+                ) : (
+                  <PhotoIcon />
+                )}
+              </span>
+              <div className="min-w-0 flex-1 text-xs">
+                <p className="truncate font-medium">
+                  {isVoiceAttachment ? "Voice message" : attachedFile.name}
+                </p>
+                <p className="text-neutral-500">
+                  {attachMode === "once" ? "Sends as view once" : "Sends and stays in the thread"}
+                </p>
+              </div>
+              <div className="flex flex-none rounded-full border border-border-subtle bg-background p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setAttachMode("keep")}
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                    attachMode === "keep" ? "bg-accent/20 text-accent" : "text-neutral-500"
+                  }`}
+                >
+                  Keep
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAttachMode("once")}
+                  className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                    attachMode === "once" ? "bg-amber-400/20 text-amber-400" : "text-neutral-500"
+                  }`}
+                >
+                  <FlameIcon size={11} /> Once
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAttachedFile(null)}
+                className="flex-none rounded-md p-1.5 text-neutral-500 hover:bg-surface-hover hover:text-white"
+                aria-label="Remove attachment"
+              >
+                <XIcon />
+              </button>
+            </div>
+          )
+        )}
+
+        {!recording && (
+          <div className="flex items-end gap-1">
+            <EmojiPicker onSelect={insertEmoji} />
+            <button
+              type="button"
+              onClick={() => pickFile("photo")}
+              disabled={disabled}
+              title="Attach photo"
+              aria-label="Attach photo"
+              className="flex h-[38px] w-9 flex-none items-center justify-center rounded-lg text-neutral-400 transition hover:bg-surface hover:text-white disabled:opacity-40"
+            >
+              <PhotoIcon />
+            </button>
+            <button
+              type="button"
+              onClick={() => pickFile("video")}
+              disabled={disabled}
+              title="Attach video"
+              aria-label="Attach video"
+              className="flex h-[38px] w-9 flex-none items-center justify-center rounded-lg text-neutral-400 transition hover:bg-surface hover:text-white disabled:opacity-40"
+            >
+              <VideoIcon />
+            </button>
+            <button
+              type="button"
+              onClick={startRecording}
+              disabled={disabled}
+              title="Record a voice message"
+              aria-label="Record a voice message"
+              className="flex h-[38px] w-9 flex-none items-center justify-center rounded-lg text-neutral-400 transition hover:bg-surface hover:text-white disabled:opacity-40"
+            >
+              <MicIcon />
+            </button>
+            <GifPicker onSelect={sendGif} />
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                autoGrow();
+              }}
+              onKeyDown={handleKeyDown}
+              disabled={disabled}
+              placeholder={disabled ? "Not connected" : placeholder}
+              className="max-h-[120px] min-h-[38px] flex-1 resize-none rounded-lg border border-border-subtle bg-background/60 px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={!canSend}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:bg-accent-hover disabled:opacity-50"
+            >
+              {uploading ? "Sending…" : "Send"}
             </button>
           </div>
         )}
-
-        <div className="flex items-end gap-2">
-          <button
-            type="button"
-            onClick={() => pickFile("photo")}
-            disabled={disabled}
-            title="Attach photo"
-            aria-label="Attach photo"
-            className="flex h-[38px] w-9 flex-none items-center justify-center rounded-lg text-neutral-400 transition hover:bg-surface hover:text-white disabled:opacity-40"
-          >
-            <PhotoIcon />
-          </button>
-          <button
-            type="button"
-            onClick={() => pickFile("video")}
-            disabled={disabled}
-            title="Attach video"
-            aria-label="Attach video"
-            className="flex h-[38px] w-9 flex-none items-center justify-center rounded-lg text-neutral-400 transition hover:bg-surface hover:text-white disabled:opacity-40"
-          >
-            <VideoIcon />
-          </button>
-          <textarea
-            ref={textareaRef}
-            rows={1}
-            value={draft}
-            onChange={(e) => {
-              setDraft(e.target.value);
-              autoGrow();
-            }}
-            onKeyDown={handleKeyDown}
-            disabled={disabled}
-            placeholder={disabled ? "Not connected" : placeholder}
-            className="max-h-[120px] min-h-[38px] flex-1 resize-none rounded-lg border border-border-subtle bg-background/60 px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:opacity-50"
-          />
-          <button
-            type="submit"
-            disabled={!canSend}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:bg-accent-hover disabled:opacity-50"
-          >
-            {uploading ? "Sending…" : "Send"}
-          </button>
-        </div>
       </form>
     </div>
   );
