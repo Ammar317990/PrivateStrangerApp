@@ -58,7 +58,7 @@ export default function GifPicker({ onSelect }: { onSelect: (url: string) => voi
         onClick={() => setOpen((o) => !o)}
         title="GIF"
         aria-label="Send a GIF"
-        className={`flex h-9 w-9 flex-none items-center justify-center rounded-lg text-[10px] font-bold tracking-tight transition hover:bg-surface ${
+        className={`flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] text-[10px] font-bold tracking-tight transition hover:bg-surface ${
           open ? "bg-surface text-white" : "text-neutral-400"
         }`}
       >

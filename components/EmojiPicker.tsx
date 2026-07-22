@@ -64,7 +64,7 @@ export default function EmojiPicker({ onSelect }: { onSelect: (emoji: string) =>
         onClick={() => setOpen((o) => !o)}
         title="Emoji"
         aria-label="Insert emoji"
-        className={`flex h-9 w-9 flex-none items-center justify-center rounded-lg text-lg transition hover:bg-surface ${
+        className={`flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] text-lg transition hover:bg-surface ${
           open ? "bg-surface text-white" : "text-neutral-400"
         }`}
       >

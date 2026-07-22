@@ -125,6 +125,43 @@ function OnlineUsersRow({
   );
 }
 
+function OnlineNowSidebar({
+  emails,
+  onPick,
+}: {
+  emails: string[];
+  onPick: (email: string) => void;
+}) {
+  if (emails.length === 0) return null;
+  return (
+    <div className="mt-auto flex flex-col gap-1.5">
+      <div className="px-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+        Online now
+      </div>
+      <div className="scrollbar-thin flex max-h-52 flex-col gap-0.5 overflow-y-auto">
+        {emails.map((email) => (
+          <button
+            key={email}
+            type="button"
+            onClick={() => onPick(email)}
+            title={`Start a private chat with ${email}`}
+            className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-left text-xs text-neutral-400 transition hover:bg-surface hover:text-white"
+          >
+            <span
+              className="flex h-5 w-5 flex-none items-center justify-center rounded-full text-[10px] font-bold text-white"
+              style={{ backgroundColor: colorFor(email) }}
+            >
+              {email[0]?.toUpperCase()}
+            </span>
+            <span className="min-w-0 flex-1 truncate">{email}</span>
+            <span className="h-1.5 w-1.5 flex-none rounded-full bg-emerald-400" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
@@ -534,6 +571,10 @@ export default function ChatPage() {
           icon={<VideoChatIcon />}
           label="Video Chat"
         />
+        <OnlineNowSidebar
+          emails={liveOnlineUsers.filter((email) => email !== user.email)}
+          onPick={handleRequestDirectChat}
+        />
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col gap-4">
@@ -572,10 +613,12 @@ export default function ChatPage() {
           </>
         ) : section === "live" ? (
           <>
-            <OnlineUsersRow
-              emails={liveOnlineUsers.filter((email) => email !== user.email)}
-              onPick={handleRequestDirectChat}
-            />
+            <div className="lg:hidden">
+              <OnlineUsersRow
+                emails={liveOnlineUsers.filter((email) => email !== user.email)}
+                onPick={handleRequestDirectChat}
+              />
+            </div>
             {directConnecting && <p className="px-1 text-xs text-neutral-500">Connecting…</p>}
             {directError && <p className="px-1 text-xs text-red-400">{directError}</p>}
             <ChatPanel

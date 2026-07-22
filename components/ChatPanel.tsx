@@ -69,6 +69,37 @@ function FlameIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+function PinIcon({ size = 11 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="currentColor">
+      <path d="M11.5 2.5l6 6-2 2-1-.3-3 3 .8 3-1.6 1.6-3.4-3.4-4 4-1-1 4-4L2.9 10 4.5 8.4l3 .8 3-3-.3-1z" />
+    </svg>
+  );
+}
+
+function GhostPhotoIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <rect x="2.5" y="4" width="15" height="12" rx="2" strokeDasharray="2 2" />
+      <circle cx="7" cy="8.5" r="1.2" />
+      <path d="M4 14l4-4 3 3 2.5-2.5L17 14" />
+    </svg>
+  );
+}
+
+function GhostVideoIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <rect x="2.5" y="5" width="10" height="10" rx="2" strokeDasharray="2 2" />
+      <path d="M12.5 9l5-3v8l-5-3" />
+    </svg>
+  );
+}
+
+function formatTime(at: string) {
+  return new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
 function XIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -115,11 +146,13 @@ function GifBubble({ url, fromSelf }: { url: string; fromSelf: boolean }) {
 function MediaBubble({
   media,
   fromSelf,
+  at,
   revealed,
   onReveal,
 }: {
   media: MediaRef;
   fromSelf: boolean;
+  at: string;
   revealed: boolean;
   onReveal: () => void;
 }) {
@@ -130,6 +163,7 @@ function MediaBubble({
   const isOnce = media.mode === "once";
   const noun = isAudio ? "Voice message" : isVideo ? "Video" : "Photo";
   const verb = isAudio ? "listen" : "view";
+  const rounding = fromSelf ? "rounded-br-sm" : "rounded-bl-sm";
 
   // Chrome writes an unseekable/unknown duration into webm blobs recorded
   // via MediaRecorder, so <audio> reports a bogus duration (e.g. a 4s clip
@@ -156,7 +190,9 @@ function MediaBubble({
 
   // "once" media the sender must never fetch — doing so would burn the
   // single view before the recipient even sees it (server enforces one
-  // successful fetch per media id, sender included).
+  // successful fetch per media id, sender included). So unlike every other
+  // state here, the sender's own copy can't mirror the two-part visual
+  // card at all — there's nothing safe to show a thumbnail of.
   if (isOnce && fromSelf) {
     return (
       <div className="flex items-center gap-1.5 rounded-2xl rounded-br-sm bg-accent/80 px-3 py-2 text-xs font-medium text-accent-foreground">
@@ -170,9 +206,14 @@ function MediaBubble({
 
   if (isOnce && alreadyGone) {
     return (
-      <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm border border-border-subtle bg-surface px-3 py-2 text-xs text-neutral-500">
-        <FlameIcon />
-        {noun} already {isAudio ? "played" : "viewed"}
+      <div className={`w-56 overflow-hidden rounded-2xl border border-border-subtle bg-surface ${rounding}`}>
+        <div className="flex aspect-[4/3] w-full items-center justify-center bg-surface-hover text-neutral-600">
+          {isVideo ? <GhostVideoIcon /> : <GhostPhotoIcon />}
+        </div>
+        <div className="flex items-center gap-1.5 px-2.5 py-2 text-[11.5px] text-neutral-500">
+          <FlameIcon size={11} />
+          You already {isAudio ? "listened to this" : "viewed this"}
+        </div>
       </div>
     );
   }
@@ -182,21 +223,27 @@ function MediaBubble({
       <button
         type="button"
         onClick={onReveal}
-        className={`flex w-48 flex-col items-center justify-center gap-1.5 rounded-2xl border border-amber-400/30 bg-amber-400/10 py-6 text-center transition hover:bg-amber-400/15 ${
-          fromSelf ? "rounded-br-sm" : "rounded-bl-sm"
-        }`}
+        aria-label={`Tap to ${verb} — disappears after ${isAudio ? "playing" : "viewing"}`}
+        className={`block w-56 overflow-hidden rounded-2xl border border-border-subtle bg-surface text-left ${rounding}`}
       >
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-400 text-amber-950">
-          <FlameIcon size={18} />
-        </span>
-        <span className="text-xs font-semibold">Tap to {verb}</span>
-        <span className="text-[11px] text-neutral-400">Disappears after {isAudio ? "playing" : "viewing"}</span>
+        <div className="relative flex aspect-[4/3] w-full flex-col items-center justify-center gap-1.5 bg-gradient-to-b from-black/10 to-black/40 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-amber-400 text-amber-950 shadow-[0_0_0_5px_rgba(240,160,32,0.15)]">
+            <FlameIcon size={20} />
+          </span>
+          <span className="text-[11.5px] font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]">
+            Tap to {verb}
+          </span>
+          <span className="text-[10px] text-white/70">Disappears after {isAudio ? "playing" : "viewing"}</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-2.5 py-2 text-[11.5px] text-amber-400">
+          <FlameIcon size={11} />
+          View once
+        </div>
       </button>
     );
   }
 
   const src = getMediaUrl(media.id);
-  const rounding = fromSelf ? "rounded-br-sm" : "rounded-bl-sm";
 
   if (isAudio) {
     return (
@@ -214,12 +261,25 @@ function MediaBubble({
             onError={() => isOnce && setExpired(true)}
           />
         </div>
-        {isOnce && (
-          <div className="flex items-center gap-1.5 border-t border-border-subtle px-2.5 py-1.5 text-[11px] text-amber-400">
-            <FlameIcon size={11} />
-            Disappears after you close or leave this chat
-          </div>
-        )}
+        <div
+          className={`flex items-center gap-1.5 border-t border-border-subtle px-2.5 py-2 text-[11.5px] ${
+            isOnce ? "text-amber-400" : "text-neutral-500"
+          }`}
+        >
+          {isOnce ? (
+            <>
+              <FlameIcon size={11} />
+              Disappears after you close or leave this chat
+            </>
+          ) : (
+            <>
+              <span className="flex text-accent">
+                <PinIcon />
+              </span>
+              Voice message · {formatTime(at)}
+            </>
+          )}
+        </div>
       </div>
     );
   }
@@ -231,7 +291,7 @@ function MediaBubble({
           src={src}
           controls
           autoPlay={isOnce}
-          className="max-h-64 w-full bg-black"
+          className="aspect-[4/3] max-h-64 w-full bg-black object-cover"
           onError={() => isOnce && setExpired(true)}
         />
       ) : (
@@ -239,16 +299,29 @@ function MediaBubble({
         <img
           src={src}
           alt=""
-          className="max-h-64 w-full object-cover"
+          className="aspect-[4/3] max-h-64 w-full object-cover"
           onError={() => isOnce && setExpired(true)}
         />
       )}
-      {isOnce && (
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-amber-400">
-          <FlameIcon size={11} />
-          Disappears after you close or leave this chat
-        </div>
-      )}
+      <div
+        className={`flex items-center gap-1.5 px-2.5 py-2 text-[11.5px] ${
+          isOnce ? "text-amber-400" : "text-neutral-500"
+        }`}
+      >
+        {isOnce ? (
+          <>
+            <FlameIcon size={11} />
+            Disappears after you close or leave this chat
+          </>
+        ) : (
+          <>
+            <span className="flex text-accent">
+              <PinIcon />
+            </span>
+            {noun} · {formatTime(at)}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -454,6 +527,7 @@ export default function ChatPanel({
               <MediaBubble
                 media={m.media}
                 fromSelf={m.fromSelf}
+                at={m.at}
                 revealed={revealed.has(i)}
                 onReveal={() => setRevealed((prev) => new Set(prev).add(i))}
               />
@@ -517,8 +591,8 @@ export default function ChatPanel({
           </div>
         ) : (
           attachedFile && (
-            <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface p-1.5">
-              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-surface-hover text-neutral-400">
+            <div className="flex items-center gap-2.5 rounded-xl border border-border-subtle bg-surface p-2">
+              <span className="flex h-[42px] w-[42px] flex-none items-center justify-center rounded-[9px] bg-surface-hover text-neutral-400">
                 {isVoiceAttachment ? (
                   <MicIcon />
                 ) : attachedFile.type.startsWith("video") ? (
@@ -579,7 +653,7 @@ export default function ChatPanel({
                 disabled={disabled}
                 title="Attach photo"
                 aria-label="Attach photo"
-                className="flex h-9 w-9 flex-none items-center justify-center rounded-lg text-neutral-400 transition hover:bg-surface hover:text-white disabled:opacity-40"
+                className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] border border-transparent text-neutral-400 transition hover:border-border-subtle hover:bg-surface hover:text-white disabled:opacity-40"
               >
                 <PhotoIcon />
               </button>
@@ -589,7 +663,7 @@ export default function ChatPanel({
                 disabled={disabled}
                 title="Attach video"
                 aria-label="Attach video"
-                className="flex h-9 w-9 flex-none items-center justify-center rounded-lg text-neutral-400 transition hover:bg-surface hover:text-white disabled:opacity-40"
+                className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] border border-transparent text-neutral-400 transition hover:border-border-subtle hover:bg-surface hover:text-white disabled:opacity-40"
               >
                 <VideoIcon />
               </button>
@@ -599,7 +673,7 @@ export default function ChatPanel({
                 disabled={disabled}
                 title="Record a voice message"
                 aria-label="Record a voice message"
-                className="flex h-9 w-9 flex-none items-center justify-center rounded-lg text-neutral-400 transition hover:bg-surface hover:text-white disabled:opacity-40"
+                className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] border border-transparent text-neutral-400 transition hover:border-border-subtle hover:bg-surface hover:text-white disabled:opacity-40"
               >
                 <MicIcon />
               </button>
@@ -618,12 +692,12 @@ export default function ChatPanel({
                 onKeyDown={handleKeyDown}
                 disabled={disabled}
                 placeholder={disabled ? "Not connected" : placeholder}
-                className="max-h-[120px] min-h-[38px] flex-1 resize-none rounded-lg border border-border-subtle bg-background/60 px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:opacity-50"
+                className="max-h-[120px] min-h-[38px] flex-1 resize-none rounded-[14px] border border-border-subtle bg-surface px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:opacity-50"
               />
               <button
                 type="submit"
                 disabled={!canSend}
-                className="flex-none rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:bg-accent-hover disabled:opacity-50"
+                className="flex-none rounded-[10px] bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground transition hover:bg-accent-hover disabled:opacity-50"
               >
                 {uploading ? "Sending…" : "Send"}
               </button>
