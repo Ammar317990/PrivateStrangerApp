@@ -23,6 +23,11 @@ export type ServerToClientEvents = {
     at: string;
     fromEmail: string;
   }) => void;
+  "live-chat-joined": (data: {
+    messages: { text: string; at: string; fromEmail: string }[];
+  }) => void;
+  "live-chat-message": (data: { text: string; at: string; fromEmail: string }) => void;
+  "live-chat-online-count": (data: { count: number }) => void;
 };
 
 export type ClientToServerEvents = {
@@ -37,6 +42,7 @@ export type ClientToServerEvents = {
   "direct-chat-request": (data: { email: string }) => void;
   "direct-message": (data: { conversationId: string; text: string }) => void;
   "direct-chat-leave": (data: { conversationId: string }) => void;
+  "live-chat-message": (data: { text: string }) => void;
 };
 
 export type ChatSocket = Socket<ServerToClientEvents, ClientToServerEvents>;

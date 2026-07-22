@@ -13,6 +13,7 @@ import ChatControls from "@/components/ChatControls";
 import DirectChatStarter from "@/components/DirectChatStarter";
 
 type Status = "idle" | "waiting" | "matched";
+type Section = "live" | "video";
 
 const REASON_MESSAGES: Record<string, string> = {
   skipped: "Stranger left to talk to someone else.",
@@ -21,9 +22,37 @@ const REASON_MESSAGES: Record<string, string> = {
   reported: "You reported this stranger and the chat ended.",
 };
 
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+        active
+          ? "bg-accent text-accent-foreground"
+          : "border border-border-subtle bg-surface text-neutral-400 hover:border-neutral-600 hover:text-white"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
+
+  const [section, setSection] = useState<Section>("live");
+
+  const [liveMessages, setLiveMessages] = useState<ChatMessage[]>([]);
+  const [liveOnlineCount, setLiveOnlineCount] = useState(0);
 
   const [status, setStatus] = useState<Status>("idle");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -72,45 +101,40 @@ export default function ChatPage() {
     }
   }, [loading, user, router]);
 
-  // Acquire camera/mic once, ahead of matchmaking.
+  // Camera/mic are requested on demand (see ensureCamera, called from
+  // handleStart) rather than the moment the page loads — Live Chat needs
+  // neither, and Video Chat shouldn't prompt for them before someone
+  // actually opts in. Just make sure whatever got acquired is released
+  // when the page unmounts.
   useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
+    return () => {
+      localStreamRef.current?.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+    };
+  }, []);
+
+  async function ensureCamera() {
+    if (localStreamRef.current) return;
 
     // navigator.mediaDevices only exists in secure contexts (HTTPS, or
     // http://localhost) — e.g. it's undefined when someone opens the app
     // over plain http:// at a LAN IP. Fail gracefully instead of throwing.
     if (!navigator.mediaDevices?.getUserMedia) {
-      queueMicrotask(() => {
-        if (!cancelled) {
-          setCameraError(
-            "Camera/mic requires a secure connection (HTTPS or localhost) — you can still use text chat."
-          );
-        }
-      });
+      setCameraError(
+        "Camera/mic requires a secure connection (HTTPS or localhost) — you can still use text chat."
+      );
       return;
     }
 
-    navigator.mediaDevices
-      .getUserMedia({ video: true, audio: true })
-      .then((stream) => {
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        localStreamRef.current = stream;
-        setLocalStream(stream);
-      })
-      .catch(() => {
-        setCameraError("Camera/mic unavailable — you can still use text chat.");
-      });
-
-    return () => {
-      cancelled = true;
-      localStreamRef.current?.getTracks().forEach((t) => t.stop());
-      localStreamRef.current = null;
-    };
-  }, [user]);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStreamRef.current = stream;
+      setLocalStream(stream);
+      setCameraError(null);
+    } catch {
+      setCameraError("Camera/mic unavailable — you can still use text chat.");
+    }
+  }
 
   const cleanupPeerConnection = useCallback(() => {
     const pc = pcRef.current;
@@ -182,6 +206,20 @@ export default function ChatPage() {
 
     socket.on("connect_error", () => {
       router.replace("/login");
+    });
+
+    socket.on("live-chat-joined", ({ messages }) => {
+      setLiveMessages(
+        messages.map((m) => ({ text: m.text, at: m.at, fromSelf: m.fromEmail === user.email, fromEmail: m.fromEmail }))
+      );
+    });
+
+    socket.on("live-chat-message", ({ text, at, fromEmail }) => {
+      setLiveMessages((prev) => [...prev, { text, at, fromSelf: fromEmail === user.email, fromEmail }]);
+    });
+
+    socket.on("live-chat-online-count", ({ count }) => {
+      setLiveOnlineCount(count);
     });
 
     socket.on("waiting", () => {
@@ -284,7 +322,8 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  function handleStart() {
+  async function handleStart() {
+    await ensureCamera();
     socketRef.current?.emit("join-queue");
     setStatus("waiting");
   }
@@ -313,6 +352,12 @@ export default function ChatPage() {
   function handleSend(text: string) {
     socketRef.current?.emit("send-message", { text });
     setMessages((prev) => [...prev, { text, at: new Date().toISOString(), fromSelf: true }]);
+  }
+
+  function handleSendLive(text: string) {
+    // No optimistic append: the server broadcasts back to every socket in
+    // the lobby, sender included, so appending locally would double it up.
+    socketRef.current?.emit("live-chat-message", { text });
   }
 
   function handleRequestDirectChat(email: string) {
@@ -349,7 +394,7 @@ export default function ChatPage() {
   const inDirectChat = directConversationId !== null;
   const inRandomChat = status === "matched";
 
-  const statusPill =
+  const videoStatusPill =
     status === "waiting" ? (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface px-2.5 py-1 text-xs font-medium text-neutral-400">
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
@@ -362,20 +407,46 @@ export default function ChatPage() {
       </span>
     ) : null;
 
+  const liveStatusPill = (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
+      <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+      {liveOnlineCount} online
+    </span>
+  );
+
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">
-          {inRandomChat
-            ? `Chatting with ${partnerEmail ?? "Stranger"}`
-            : inDirectChat
-              ? `Chatting with ${directPartnerEmail}`
-              : "Stranger Chat"}
-        </h1>
-        {statusPill}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h1 className="text-lg font-semibold">
+            {section === "live"
+              ? "Live Chat"
+              : inRandomChat
+                ? `Chatting with ${partnerEmail ?? "Stranger"}`
+                : inDirectChat
+                  ? `Chatting with ${directPartnerEmail}`
+                  : "Video Chat"}
+          </h1>
+          {section === "live" ? liveStatusPill : videoStatusPill}
+        </div>
+        <div className="flex gap-2">
+          <TabButton active={section === "live"} onClick={() => setSection("live")}>
+            Live Chat
+          </TabButton>
+          <TabButton active={section === "video"} onClick={() => setSection("video")}>
+            Video Chat
+          </TabButton>
+        </div>
       </div>
 
-      {inDirectChat ? (
+      {section === "live" ? (
+        <ChatPanel
+          messages={liveMessages}
+          onSend={handleSendLive}
+          disabled={false}
+          placeholder="Message the room…"
+        />
+      ) : inDirectChat ? (
         <>
           <ChatPanel messages={directMessages} onSend={handleSendDirect} disabled={false} />
           <button
@@ -395,7 +466,9 @@ export default function ChatPage() {
         </div>
       ) : (
         <>
-          <VideoPanel localStream={localStream} remoteStream={remoteStream} cameraError={cameraError} />
+          {status !== "idle" && (
+            <VideoPanel localStream={localStream} remoteStream={remoteStream} cameraError={cameraError} />
+          )}
           <MatchmakingOverlay
             status={status === "waiting" ? "waiting" : "idle"}
             statusMessage={iceServersReady ? statusMessage : "Preparing connection…"}

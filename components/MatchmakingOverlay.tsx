@@ -30,6 +30,9 @@ export default function MatchmakingOverlay({
           >
             Start chatting
           </button>
+          <p className="text-xs text-neutral-500">
+            Camera &amp; mic turn on when you start — text chat works either way.
+          </p>
         </>
       )}
     </div>
