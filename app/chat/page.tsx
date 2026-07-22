@@ -125,6 +125,51 @@ function OnlineUsersRow({
   );
 }
 
+type IncomingInvite = { requestId: string; fromEmail: string };
+
+function IncomingInviteBanner({
+  invite,
+  extraCount,
+  onAccept,
+  onDecline,
+}: {
+  invite: IncomingInvite;
+  extraCount: number;
+  onAccept: () => void;
+  onDecline: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-accent/30 bg-accent/10 p-3">
+      <span
+        className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-xs font-bold text-white"
+        style={{ backgroundColor: colorFor(invite.fromEmail) }}
+      >
+        {invite.fromEmail[0]?.toUpperCase()}
+      </span>
+      <p className="min-w-0 flex-1 text-sm">
+        <span className="font-semibold">{invite.fromEmail}</span> wants to chat with you
+        {extraCount > 0 && (
+          <span className="text-neutral-400"> · +{extraCount} more waiting</span>
+        )}
+      </p>
+      <div className="flex flex-none gap-2">
+        <button
+          onClick={onDecline}
+          className="rounded-lg border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-neutral-600"
+        >
+          Decline
+        </button>
+        <button
+          onClick={onAccept}
+          className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition hover:bg-accent-hover"
+        >
+          Accept
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function OnlineNowSidebar({
   emails,
   onPick,
@@ -184,6 +229,8 @@ export default function ChatPage() {
   const [directPartnerEmail, setDirectPartnerEmail] = useState<string | null>(null);
   const [directError, setDirectError] = useState<string | null>(null);
   const [directConnecting, setDirectConnecting] = useState(false);
+  const [waitingForEmail, setWaitingForEmail] = useState<string | null>(null);
+  const [incomingInvites, setIncomingInvites] = useState<IncomingInvite[]>([]);
   const [directMessages, setDirectMessages] = useState<ChatMessage[]>([]);
   const [iceServersReady, setIceServersReady] = useState(false);
 
@@ -425,6 +472,7 @@ export default function ChatPage() {
       }
       directConversationIdRef.current = conversationId;
       setDirectConnecting(false);
+      setWaitingForEmail(null);
       setDirectError(null);
       setDirectConversationId(conversationId);
       setDirectPartnerEmail(partner.email);
@@ -446,7 +494,28 @@ export default function ChatPage() {
 
     socket.on("direct-chat-error", ({ message }) => {
       setDirectConnecting(false);
+      setWaitingForEmail(null);
       setDirectError(message);
+    });
+
+    socket.on("direct-chat-invite", ({ requestId, fromEmail }) => {
+      setIncomingInvites((prev) =>
+        prev.some((i) => i.requestId === requestId) ? prev : [...prev, { requestId, fromEmail }]
+      );
+    });
+
+    socket.on("direct-chat-invite-sent", ({ targetEmail }) => {
+      setDirectConnecting(false);
+      setWaitingForEmail(targetEmail);
+    });
+
+    socket.on("direct-chat-invite-expired", ({ requestId }) => {
+      setIncomingInvites((prev) => prev.filter((i) => i.requestId !== requestId));
+    });
+
+    socket.on("direct-chat-declined", ({ targetEmail }) => {
+      setWaitingForEmail(null);
+      setDirectError(`${targetEmail} declined the chat.`);
     });
 
     return () => {
@@ -504,6 +573,16 @@ export default function ChatPage() {
     socketRef.current?.emit("direct-chat-request", { email });
   }
 
+  function handleAcceptInvite(requestId: string) {
+    socketRef.current?.emit("direct-chat-respond", { requestId, accept: true });
+    setIncomingInvites((prev) => prev.filter((i) => i.requestId !== requestId));
+  }
+
+  function handleDeclineInvite(requestId: string) {
+    socketRef.current?.emit("direct-chat-respond", { requestId, accept: false });
+    setIncomingInvites((prev) => prev.filter((i) => i.requestId !== requestId));
+  }
+
   function handleCloseDirect() {
     if (directConversationId) {
       socketRef.current?.emit("direct-chat-leave", { conversationId: directConversationId });
@@ -556,28 +635,29 @@ export default function ChatPage() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 gap-4 p-4">
-      <aside className="hidden w-52 flex-none flex-col gap-1 lg:flex">
-        <SidebarNavButton
-          active={section === "live"}
-          onClick={() => setSection("live")}
-          icon={<LiveChatIcon />}
-          label="Live Chat"
-          badge={liveOnlineCount}
-        />
-        <SidebarNavButton
-          active={section === "video"}
-          onClick={() => setSection("video")}
-          icon={<VideoChatIcon />}
-          label="Video Chat"
-        />
-        <OnlineNowSidebar
-          emails={liveOnlineUsers.filter((email) => email !== user.email)}
-          onPick={handleRequestDirectChat}
-        />
-      </aside>
+    <div className="mx-auto flex w-full max-w-6xl flex-1 p-4">
+      <div className="flex w-full flex-1 overflow-hidden rounded-2xl border border-border-subtle bg-background shadow-[0_30px_70px_-30px_rgba(0,0,0,0.85)]">
+        <aside className="hidden w-52 flex-none flex-col gap-1 border-r border-border-subtle bg-surface/30 p-4 lg:flex">
+          <SidebarNavButton
+            active={section === "live"}
+            onClick={() => setSection("live")}
+            icon={<LiveChatIcon />}
+            label="Live Chat"
+            badge={liveOnlineCount}
+          />
+          <SidebarNavButton
+            active={section === "video"}
+            onClick={() => setSection("video")}
+            icon={<VideoChatIcon />}
+            label="Video Chat"
+          />
+          <OnlineNowSidebar
+            emails={liveOnlineUsers.filter((email) => email !== user.email)}
+            onPick={handleRequestDirectChat}
+          />
+        </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col gap-4">
+        <main className="flex min-w-0 flex-1 flex-col gap-4 p-4">
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h1 className="text-lg font-semibold">
@@ -601,6 +681,15 @@ export default function ChatPage() {
           </div>
         </div>
 
+        {incomingInvites[0] && (
+          <IncomingInviteBanner
+            invite={incomingInvites[0]}
+            extraCount={incomingInvites.length - 1}
+            onAccept={() => handleAcceptInvite(incomingInvites[0].requestId)}
+            onDecline={() => handleDeclineInvite(incomingInvites[0].requestId)}
+          />
+        )}
+
         {inDirectChat ? (
           <>
             <ChatPanel messages={directMessages} onSend={handleSendDirect} disabled={false} />
@@ -619,7 +708,10 @@ export default function ChatPage() {
                 onPick={handleRequestDirectChat}
               />
             </div>
-            {directConnecting && <p className="px-1 text-xs text-neutral-500">Connecting…</p>}
+            {directConnecting && <p className="px-1 text-xs text-neutral-500">Sending request…</p>}
+            {waitingForEmail && (
+              <p className="px-1 text-xs text-neutral-500">Waiting for {waitingForEmail} to accept…</p>
+            )}
             {directError && <p className="px-1 text-xs text-red-400">{directError}</p>}
             <ChatPanel
               messages={liveMessages}
@@ -649,13 +741,14 @@ export default function ChatPage() {
             />
             <DirectChatStarter
               disabled={status === "waiting"}
-              connecting={directConnecting}
+              connecting={directConnecting || waitingForEmail !== null}
               error={directError}
               onStart={handleRequestDirectChat}
             />
           </>
         )}
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
