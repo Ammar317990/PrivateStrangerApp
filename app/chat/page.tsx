@@ -261,6 +261,7 @@ export default function ChatPage() {
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const iceServersRef = useRef<RTCIceServer[] | undefined>(undefined);
   const directConversationIdRef = useRef<string | null>(null);
+  const directConnectingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusRef = useRef<Status>("idle");
 
   useEffect(() => {
@@ -296,6 +297,7 @@ export default function ChatPage() {
     return () => {
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
+      if (directConnectingTimeoutRef.current) clearTimeout(directConnectingTimeoutRef.current);
     };
   }, []);
 
@@ -320,6 +322,28 @@ export default function ChatPage() {
     } catch {
       setCameraError("Camera/mic unavailable — you can still use text chat.");
     }
+  }
+
+  // Guards against ever getting stuck on "Opening chat…"/"Sending
+  // request…" — if the server doesn't answer (dropped event, deploy lag,
+  // an edge case we didn't anticipate) within a few seconds, this clears
+  // the loading state and surfaces an error instead of hanging forever.
+  function startDirectConnecting() {
+    setDirectConnecting(true);
+    setDirectError(null);
+    if (directConnectingTimeoutRef.current) clearTimeout(directConnectingTimeoutRef.current);
+    directConnectingTimeoutRef.current = setTimeout(() => {
+      setDirectConnecting(false);
+      setDirectError("That took too long — try again.");
+    }, 8000);
+  }
+
+  function stopDirectConnecting() {
+    if (directConnectingTimeoutRef.current) {
+      clearTimeout(directConnectingTimeoutRef.current);
+      directConnectingTimeoutRef.current = null;
+    }
+    setDirectConnecting(false);
   }
 
   const cleanupPeerConnection = useCallback(() => {
@@ -486,13 +510,17 @@ export default function ChatPage() {
 
     socket.on("direct-chat-started", ({ conversationId, partner, messages }) => {
       if (statusRef.current !== "idle") {
-        // Busy in (or waiting for) a random chat — don't interrupt it, silently
-        // decline the incoming direct chat by leaving its room right away.
+        // Busy in (or waiting for) a random chat — don't interrupt it, decline
+        // the incoming direct chat by leaving its room right away. Must still
+        // clear the loading state, or "Opening chat…"/"Sending request…"
+        // sticks forever with nothing left to clear it.
         socket.emit("direct-chat-leave", { conversationId });
+        stopDirectConnecting();
+        setDirectError("You're in a video chat — end it first to open a direct chat.");
         return;
       }
       directConversationIdRef.current = conversationId;
-      setDirectConnecting(false);
+      stopDirectConnecting();
       setDirectError(null);
       setDirectConversationId(conversationId);
       setDirectPartnerEmail(partner.email);
@@ -514,7 +542,7 @@ export default function ChatPage() {
     });
 
     socket.on("direct-chat-error", ({ message }) => {
-      setDirectConnecting(false);
+      stopDirectConnecting();
       setDirectError(message);
     });
 
@@ -585,14 +613,12 @@ export default function ChatPage() {
   }
 
   function handleRequestDirectChat(email: string) {
-    setDirectConnecting(true);
-    setDirectError(null);
+    startDirectConnecting();
     socketRef.current?.emit("direct-chat-request", { email });
   }
 
   function handleOpenConversation(conversationId: string) {
-    setDirectConnecting(true);
-    setDirectError(null);
+    startDirectConnecting();
     socketRef.current?.emit("direct-chat-open", { conversationId });
   }
 
