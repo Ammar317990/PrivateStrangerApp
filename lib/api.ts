@@ -69,4 +69,32 @@ export function getTurnCredentials() {
   return request<{ iceServers: RTCIceServer[] }>("/api/turn/credentials");
 }
 
+export type MediaKind = "photo" | "video";
+export type MediaMode = "keep" | "once";
+
+// Not routed through request() — a multipart body needs the browser to set
+// its own Content-Type (with the multipart boundary), which request()'s
+// hardcoded "application/json" header would clobber.
+export async function uploadMedia(file: File, mode: MediaMode) {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("mode", mode);
+
+  const res = await fetch(`${getBackendUrl()}/api/media`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError(data.error || "Upload failed", res.status);
+  }
+  return data as { id: string; kind: MediaKind; mode: MediaMode };
+}
+
+export function getMediaUrl(id: string): string {
+  return `${getBackendUrl()}/api/media/${id}`;
+}
+
 export { ApiError, getBackendUrl };

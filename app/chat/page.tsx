@@ -7,7 +7,7 @@ import { getTurnCredentials } from "@/lib/api";
 import { createSocket, type ChatSocket } from "@/lib/socket";
 import { createPeerConnection, attachLocalTracks } from "@/lib/webrtc";
 import VideoPanel from "@/components/VideoPanel";
-import ChatPanel, { type ChatMessage } from "@/components/ChatPanel";
+import ChatPanel, { type ChatMessage, type ChatSendInput } from "@/components/ChatPanel";
 import MatchmakingOverlay from "@/components/MatchmakingOverlay";
 import ChatControls from "@/components/ChatControls";
 import DirectChatStarter from "@/components/DirectChatStarter";
@@ -210,12 +210,18 @@ export default function ChatPage() {
 
     socket.on("live-chat-joined", ({ messages }) => {
       setLiveMessages(
-        messages.map((m) => ({ text: m.text, at: m.at, fromSelf: m.fromEmail === user.email, fromEmail: m.fromEmail }))
+        messages.map((m) => ({
+          text: m.text,
+          at: m.at,
+          fromSelf: m.fromEmail === user.email,
+          fromEmail: m.fromEmail,
+          media: m.media,
+        }))
       );
     });
 
-    socket.on("live-chat-message", ({ text, at, fromEmail }) => {
-      setLiveMessages((prev) => [...prev, { text, at, fromSelf: fromEmail === user.email, fromEmail }]);
+    socket.on("live-chat-message", ({ text, at, fromEmail, media }) => {
+      setLiveMessages((prev) => [...prev, { text, at, fromSelf: fromEmail === user.email, fromEmail, media }]);
     });
 
     socket.on("live-chat-online-count", ({ count }) => {
@@ -242,8 +248,8 @@ export default function ChatPage() {
       setStatusMessage(REASON_MESSAGES[reason] || "Chat ended.");
     });
 
-    socket.on("receive-message", ({ text, at }) => {
-      setMessages((prev) => [...prev, { text, at, fromSelf: false }]);
+    socket.on("receive-message", ({ text, media, at }) => {
+      setMessages((prev) => [...prev, { text, media, at, fromSelf: false }]);
     });
 
     socket.on("webrtc-offer", async ({ sdp }) => {
@@ -300,13 +306,18 @@ export default function ChatPage() {
       setDirectConversationId(conversationId);
       setDirectPartnerEmail(partner.email);
       setDirectMessages(
-        messages.map((m) => ({ text: m.text, at: m.at, fromSelf: m.fromEmail === user.email }))
+        messages.map((m) => ({
+          text: m.text,
+          at: m.at,
+          fromSelf: m.fromEmail === user.email,
+          media: m.media,
+        }))
       );
     });
 
-    socket.on("direct-message", ({ conversationId, text, at }) => {
+    socket.on("direct-message", ({ conversationId, text, at, media }) => {
       if (directConversationIdRef.current !== conversationId) return;
-      setDirectMessages((prev) => [...prev, { text, at, fromSelf: false }]);
+      setDirectMessages((prev) => [...prev, { text, media, at, fromSelf: false }]);
     });
 
     socket.on("direct-chat-error", ({ message }) => {
@@ -349,15 +360,15 @@ export default function ChatPage() {
     socketRef.current?.emit("report-user", {});
   }
 
-  function handleSend(text: string) {
-    socketRef.current?.emit("send-message", { text });
-    setMessages((prev) => [...prev, { text, at: new Date().toISOString(), fromSelf: true }]);
+  function handleSend({ text, media }: ChatSendInput) {
+    socketRef.current?.emit("send-message", { text, media });
+    setMessages((prev) => [...prev, { text: text || "", media, at: new Date().toISOString(), fromSelf: true }]);
   }
 
-  function handleSendLive(text: string) {
+  function handleSendLive({ text, media }: ChatSendInput) {
     // No optimistic append: the server broadcasts back to every socket in
     // the lobby, sender included, so appending locally would double it up.
-    socketRef.current?.emit("live-chat-message", { text });
+    socketRef.current?.emit("live-chat-message", { text, media });
   }
 
   function handleRequestDirectChat(email: string) {
@@ -377,10 +388,13 @@ export default function ChatPage() {
     setDirectError(null);
   }
 
-  function handleSendDirect(text: string) {
+  function handleSendDirect({ text, media }: ChatSendInput) {
     if (!directConversationId) return;
-    socketRef.current?.emit("direct-message", { conversationId: directConversationId, text });
-    setDirectMessages((prev) => [...prev, { text, at: new Date().toISOString(), fromSelf: true }]);
+    socketRef.current?.emit("direct-message", { conversationId: directConversationId, text, media });
+    setDirectMessages((prev) => [
+      ...prev,
+      { text: text || "", media, at: new Date().toISOString(), fromSelf: true },
+    ]);
   }
 
   if (loading || !user) {
