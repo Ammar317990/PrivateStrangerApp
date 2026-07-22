@@ -63,6 +63,47 @@ function VideoChatIcon() {
   );
 }
 
+function LogoutIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M8 4H4.5a1 1 0 00-1 1v10a1 1 0 001 1H8" strokeLinecap="round" />
+      <path d="M13 13.5L16.5 10 13 6.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16.5 10H7.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BrandRow() {
+  return (
+    <div className="flex items-center gap-2 px-1.5 pb-2 font-semibold tracking-tight">
+      <span className="h-2 w-2 rounded-full bg-accent shadow-[0_0_12px_var(--accent)]" />
+      Stranger Chat
+    </div>
+  );
+}
+
+function UserRow({ email, onSignOut }: { email: string; onSignOut: () => void }) {
+  return (
+    <div className="flex items-center gap-2 border-t border-border-subtle pt-3">
+      <span
+        className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-xs font-bold text-white"
+        style={{ backgroundColor: colorFor(email) }}
+      >
+        {email[0]?.toUpperCase()}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-xs text-neutral-400">{email}</span>
+      <button
+        onClick={onSignOut}
+        title="Log out"
+        aria-label="Log out"
+        className="flex h-7 w-7 flex-none items-center justify-center rounded-lg text-neutral-500 transition hover:bg-surface hover:text-white"
+      >
+        <LogoutIcon />
+      </button>
+    </div>
+  );
+}
+
 function SidebarNavButton({
   active,
   onClick,
@@ -179,11 +220,11 @@ function OnlineNowSidebar({
 }) {
   if (emails.length === 0) return null;
   return (
-    <div className="mt-auto flex flex-col gap-1.5">
+    <div className="flex h-full flex-col gap-1.5 overflow-hidden">
       <div className="px-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
         Online now
       </div>
-      <div className="scrollbar-thin flex max-h-52 flex-col gap-0.5 overflow-y-auto">
+      <div className="scrollbar-thin flex flex-1 flex-col gap-0.5 overflow-y-auto">
         {emails.map((email) => (
           <button
             key={email}
@@ -209,7 +250,7 @@ function OnlineNowSidebar({
 
 export default function ChatPage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
 
   const [section, setSection] = useState<Section>("live");
 
@@ -553,6 +594,11 @@ export default function ChatPage() {
     socketRef.current?.emit("report-user", {});
   }
 
+  async function handleSignOut() {
+    await signOut();
+    router.push("/");
+  }
+
   function handleSend({ text, media, gifUrl }: ChatSendInput) {
     socketRef.current?.emit("send-message", { text, media, gifUrl });
     setMessages((prev) => [
@@ -635,29 +681,32 @@ export default function ChatPage() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 p-4">
-      <div className="flex w-full flex-1 overflow-hidden rounded-2xl border border-border-subtle bg-background shadow-[0_30px_70px_-30px_rgba(0,0,0,0.85)]">
-        <aside className="hidden w-52 flex-none flex-col gap-1 border-r border-border-subtle bg-surface/30 p-4 lg:flex">
-          <SidebarNavButton
-            active={section === "live"}
-            onClick={() => setSection("live")}
-            icon={<LiveChatIcon />}
-            label="Live Chat"
-            badge={liveOnlineCount}
-          />
-          <SidebarNavButton
-            active={section === "video"}
-            onClick={() => setSection("video")}
-            icon={<VideoChatIcon />}
-            label="Video Chat"
-          />
+    <div className="flex h-full w-full flex-1">
+      <aside className="hidden w-56 flex-none flex-col gap-1 border-r border-border-subtle bg-surface/30 p-4 lg:flex">
+        <BrandRow />
+        <SidebarNavButton
+          active={section === "live"}
+          onClick={() => setSection("live")}
+          icon={<LiveChatIcon />}
+          label="Live Chat"
+          badge={liveOnlineCount}
+        />
+        <SidebarNavButton
+          active={section === "video"}
+          onClick={() => setSection("video")}
+          icon={<VideoChatIcon />}
+          label="Video Chat"
+        />
+        <div className="flex-1 overflow-hidden py-2">
           <OnlineNowSidebar
             emails={liveOnlineUsers.filter((email) => email !== user.email)}
             onPick={handleRequestDirectChat}
           />
-        </aside>
+        </div>
+        <UserRow email={user.email} onSignOut={handleSignOut} />
+      </aside>
 
-        <main className="flex min-w-0 flex-1 flex-col gap-4 p-4">
+      <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h1 className="text-lg font-semibold">
@@ -669,7 +718,15 @@ export default function ChatPage() {
                     ? `Chatting with ${partnerEmail ?? "Stranger"}`
                     : "Video Chat"}
             </h1>
-            {inDirectChat || section === "video" ? videoStatusPill : liveStatusPill}
+            <div className="flex items-center gap-2">
+              {inDirectChat || section === "video" ? videoStatusPill : liveStatusPill}
+              <button
+                onClick={handleSignOut}
+                className="rounded-lg border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-neutral-600 hover:text-white lg:hidden"
+              >
+                Log out
+              </button>
+            </div>
           </div>
           <div className="flex gap-2 lg:hidden">
             <TabButton active={section === "live"} onClick={() => setSection("live")}>
@@ -747,8 +804,7 @@ export default function ChatPage() {
             />
           </>
         )}
-        </main>
-      </div>
+      </main>
     </div>
   );
 }

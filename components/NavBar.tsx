@@ -1,17 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 export default function NavBar() {
   const { user, signOut } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   async function handleSignOut() {
     await signOut();
     router.push("/");
   }
+
+  // The chat page is a full-bleed dashboard with its own sidebar (brand,
+  // nav, account controls) — a second global nav bar on top of it would
+  // just eat vertical space and duplicate the logo/logout it already has.
+  if (pathname?.startsWith("/chat")) return null;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border-subtle bg-background/80 backdrop-blur">
