@@ -519,8 +519,8 @@ export default function ChatPanel({
   const isVoiceAttachment = attachedFile?.name.startsWith("voice-message");
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface/40">
-      <div ref={listRef} className="scrollbar-thin flex-1 space-y-2 overflow-y-auto p-3">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface/40">
+      <div ref={listRef} className="scrollbar-thin min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
         {messages.length === 0 && (
           <p className="text-sm text-neutral-500">No messages yet. Say hi!</p>
         )}

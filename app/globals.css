@@ -35,8 +35,14 @@ body {
   color: var(--accent-foreground);
 }
 
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-subtle) transparent;
+}
+
 .scrollbar-thin::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
@@ -46,6 +52,10 @@ body {
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background: var(--border-subtle);
   border-radius: 999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
 }
 
 @keyframes drift {

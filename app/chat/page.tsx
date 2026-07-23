@@ -175,7 +175,7 @@ function PersonalChatsView({
   }
 
   return (
-    <div className="scrollbar-thin flex flex-1 flex-col gap-5 overflow-y-auto rounded-xl border border-border-subtle bg-surface/40 p-3">
+    <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto rounded-xl border border-border-subtle bg-surface/40 p-3">
       {unreadEntries.length > 0 && (
         <div className="flex flex-col gap-1">
           <p className="px-1.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
@@ -677,7 +677,7 @@ export default function ChatPage() {
     : null;
 
   return (
-    <div className="flex h-full w-full flex-1">
+    <div className="flex h-dvh w-full">
       <aside className="hidden w-56 flex-none flex-col gap-1 border-r border-border-subtle bg-surface/30 p-4 lg:flex">
         <BrandRow />
         <SidebarNavButton
@@ -703,7 +703,7 @@ export default function ChatPage() {
         <UserRow email={user.email} onSignOut={handleSignOut} />
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden p-4">
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h1 className="text-lg font-semibold">
@@ -771,8 +771,8 @@ export default function ChatPage() {
             </>
           )
         ) : inRandomChat ? (
-          <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-            <div className="flex flex-col gap-3">
+          <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+            <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
               <VideoPanel localStream={localStream} remoteStream={remoteStream} cameraError={cameraError} />
               <ChatControls onSkip={handleSkip} onEnd={handleEnd} onReport={handleReport} />
             </div>
