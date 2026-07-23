@@ -9,6 +9,35 @@
   --surface: #131318;
   --surface-hover: #1a1a22;
   --border-subtle: #26262f;
+
+  /* Only the neutral shades actually used for secondary/muted text across
+     the app — remapped per-theme below via the same indirection as the
+     tokens above, so existing text-neutral-400/500/etc classes stay put
+     and just resolve differently per theme. */
+  --neutral-100: #f4f4f5;
+  --neutral-300: #d4d4d8;
+  --neutral-400: #a1a1aa;
+  --neutral-500: #71717a;
+  --neutral-600: #52525b;
+  --card-shadow-color: rgba(0, 0, 0, 0.85);
+}
+
+:root[data-theme="light"] {
+  --background: #fafaf9;
+  --foreground: #18181b;
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --accent-foreground: #ffffff;
+  --surface: #ffffff;
+  --surface-hover: #f4f4f5;
+  --border-subtle: #e4e4e7;
+
+  --neutral-100: #27272a;
+  --neutral-300: #3f3f46;
+  --neutral-400: #52525b;
+  --neutral-500: #71717a;
+  --neutral-600: #a1a1aa;
+  --card-shadow-color: rgba(24, 24, 27, 0.12);
 }
 
 @theme inline {
@@ -20,6 +49,11 @@
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
   --color-border-subtle: var(--border-subtle);
+  --color-neutral-100: var(--neutral-100);
+  --color-neutral-300: var(--neutral-300);
+  --color-neutral-400: var(--neutral-400);
+  --color-neutral-500: var(--neutral-500);
+  --color-neutral-600: var(--neutral-600);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

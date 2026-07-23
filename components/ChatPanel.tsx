@@ -101,6 +101,27 @@ function formatTime(at: string) {
   return new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+function dayKey(at: string) {
+  const d = new Date(at);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function formatDateSeparator(at: string) {
+  const date = new Date(at);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  if (dayKey(at) === dayKey(today.toISOString())) return "Today";
+  if (dayKey(at) === dayKey(yesterday.toISOString())) return "Yesterday";
+
+  return date.toLocaleDateString([], {
+    month: "long",
+    day: "numeric",
+    year: date.getFullYear() === today.getFullYear() ? undefined : "numeric",
+  });
+}
+
 function XIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -342,11 +363,17 @@ export default function ChatPanel({
   onSend,
   disabled,
   placeholder = "Type a message…",
+  typingLabel,
+  onTyping,
+  lastReadLabel,
 }: {
   messages: ChatMessage[];
   onSend: (input: ChatSendInput) => void;
   disabled: boolean;
+  lastReadLabel?: string | null;
   placeholder?: string;
+  typingLabel?: string | null;
+  onTyping?: () => void;
 }) {
   const [draft, setDraft] = useState("");
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -525,39 +552,56 @@ export default function ChatPanel({
           <p className="text-sm text-neutral-500">No messages yet. Say hi!</p>
         )}
         {messages.map((m, i) => (
-          <div key={i} className={`flex flex-col gap-1 ${m.fromSelf ? "items-end" : "items-start"}`}>
-            {!m.fromSelf && m.fromEmail && (
-              <span
-                className="mb-0.5 px-1 text-xs font-semibold"
-                style={{ color: colorFor(m.fromEmail) }}
-              >
-                {m.fromEmail}
-              </span>
-            )}
-            {m.media && (
-              <MediaBubble
-                media={m.media}
-                fromSelf={m.fromSelf}
-                at={m.at}
-                revealed={revealed.has(i)}
-                onReveal={() => setRevealed((prev) => new Set(prev).add(i))}
-              />
-            )}
-            {m.gifUrl && <GifBubble url={m.gifUrl} fromSelf={m.fromSelf} />}
-            {m.text && (
-              <div
-                className={`max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-sm ${
-                  m.fromSelf
-                    ? "rounded-br-sm bg-accent text-accent-foreground"
-                    : "rounded-bl-sm bg-surface-hover text-neutral-100"
-                }`}
-              >
-                {m.text}
+          <div key={i} className="flex flex-col gap-1">
+            {(i === 0 || dayKey(m.at) !== dayKey(messages[i - 1].at)) && (
+              <div className="my-1 flex items-center justify-center">
+                <span className="rounded-full bg-surface px-2.5 py-0.5 text-[11px] font-medium text-neutral-500">
+                  {formatDateSeparator(m.at)}
+                </span>
               </div>
             )}
+            <div className={`flex flex-col gap-1 ${m.fromSelf ? "items-end" : "items-start"}`}>
+              {!m.fromSelf && m.fromEmail && (
+                <span
+                  className="mb-0.5 px-1 text-xs font-semibold"
+                  style={{ color: colorFor(m.fromEmail) }}
+                >
+                  {m.fromEmail}
+                </span>
+              )}
+              {m.media && (
+                <MediaBubble
+                  media={m.media}
+                  fromSelf={m.fromSelf}
+                  at={m.at}
+                  revealed={revealed.has(i)}
+                  onReveal={() => setRevealed((prev) => new Set(prev).add(i))}
+                />
+              )}
+              {m.gifUrl && <GifBubble url={m.gifUrl} fromSelf={m.fromSelf} />}
+              {m.text && (
+                <div
+                  className={`max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-sm ${
+                    m.fromSelf
+                      ? "rounded-br-sm bg-accent text-accent-foreground"
+                      : "rounded-bl-sm bg-surface-hover text-neutral-100"
+                  }`}
+                >
+                  {m.text}
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
+
+      {typingLabel ? (
+        <p className="px-3 pb-1 text-xs italic text-neutral-500">{typingLabel}</p>
+      ) : (
+        lastReadLabel && (
+          <p className="px-3 pb-1 text-right text-[11px] text-neutral-500">{lastReadLabel}</p>
+        )
+      )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-2 border-t border-border-subtle p-2">
         <input
@@ -699,10 +743,11 @@ export default function ChatPanel({
                 onChange={(e) => {
                   setDraft(e.target.value);
                   autoGrow();
+                  if (e.target.value.trim().length > 0) onTyping?.();
                 }}
                 onKeyDown={handleKeyDown}
                 disabled={disabled}
-                placeholder={disabled ? "Not connected" : placeholder}
+                placeholder={placeholder}
                 className="max-h-[120px] min-h-[38px] flex-1 resize-none rounded-[14px] border border-border-subtle bg-surface px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:opacity-50"
               />
               <button

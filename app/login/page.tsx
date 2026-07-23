@@ -7,6 +7,7 @@ import * as api from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import ChatBackdrop from "@/components/ChatBackdrop";
+import ThemeToggle from "@/components/ThemeToggle";
 
 function MailIcon() {
   return (
@@ -52,6 +53,7 @@ export default function LoginPage() {
   return (
     <main className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-10">
       <ChatBackdrop />
+      <ThemeToggle className="absolute right-4 top-4 z-10 flex h-9 w-9 flex-none items-center justify-center rounded-full border border-border-subtle bg-surface text-neutral-400 transition hover:border-neutral-600 hover:text-white" />
       <div
         aria-hidden
         className="pointer-events-none absolute left-1/2 top-[15%] h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/20 blur-3xl"
@@ -64,7 +66,7 @@ export default function LoginPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="relative flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-border-subtle bg-surface/60 p-8 shadow-[0_30px_70px_-30px_rgba(0,0,0,0.85)] backdrop-blur"
+        className="relative flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-border-subtle bg-surface/60 p-8 shadow-[0_30px_70px_-30px_var(--card-shadow-color)] backdrop-blur"
       >
         <div>
           <h1 className="text-xl font-semibold">Welcome back</h1>

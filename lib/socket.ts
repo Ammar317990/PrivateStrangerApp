@@ -44,6 +44,14 @@ export type ServerToClientEvents = {
     fromEmail: string;
   }) => void;
   "live-chat-online-count": (data: { count: number; users: string[] }) => void;
+  "live-chat-typing": (data: { fromEmail: string }) => void;
+  "live-chat-stop-typing": (data: { fromEmail: string }) => void;
+  "direct-typing": (data: { conversationId: string; fromEmail: string }) => void;
+  "direct-stop-typing": (data: { conversationId: string; fromEmail: string }) => void;
+  "direct-messages-read": (data: { conversationId: string; readAt: string }) => void;
+  "blocked-users-list": (data: { emails: string[] }) => void;
+  typing: () => void;
+  "stop-typing": () => void;
 };
 
 export type ClientToServerEvents = {
@@ -65,6 +73,14 @@ export type ClientToServerEvents = {
   }) => void;
   "direct-chat-leave": (data: { conversationId: string }) => void;
   "live-chat-message": (data: { text?: string; media?: OutgoingMedia; gifUrl?: string }) => void;
+  "live-chat-typing": () => void;
+  "live-chat-stop-typing": () => void;
+  "direct-typing": (data: { conversationId: string }) => void;
+  "direct-stop-typing": (data: { conversationId: string }) => void;
+  typing: () => void;
+  "stop-typing": () => void;
+  "block-user": (data: { email: string }) => void;
+  "unblock-user": (data: { email: string }) => void;
 };
 
 export type ChatSocket = Socket<ServerToClientEvents, ClientToServerEvents>;

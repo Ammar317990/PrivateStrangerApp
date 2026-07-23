@@ -11,9 +11,12 @@ import ChatPanel, { colorFor, type ChatMessage, type ChatSendInput } from "@/com
 import MatchmakingOverlay from "@/components/MatchmakingOverlay";
 import ChatControls from "@/components/ChatControls";
 import DirectChatStarter from "@/components/DirectChatStarter";
+import { playNotificationPing } from "@/lib/notificationSound";
+import ThemeToggle from "@/components/ThemeToggle";
 
 type Status = "idle" | "waiting" | "matched";
 type Section = "live" | "video" | "personal";
+type TypingScope = "live" | "direct" | "random";
 type UnreadEntry = { conversationId: string; otherEmail: string; count: number };
 
 const REASON_MESSAGES: Record<string, string> = {
@@ -22,6 +25,13 @@ const REASON_MESSAGES: Record<string, string> = {
   ended: "Chat ended.",
   reported: "You reported this stranger and the chat ended.",
 };
+
+function formatTypingLabel(emails: string[]): string | null {
+  if (emails.length === 0) return null;
+  if (emails.length === 1) return `${emails[0]} is typing…`;
+  if (emails.length === 2) return `${emails[0]} and ${emails[1]} are typing…`;
+  return `${emails.length} people are typing…`;
+}
 
 function TabButton({
   active,
@@ -104,6 +114,7 @@ function UserRow({ email, onSignOut }: { email: string; onSignOut: () => void })
         {email[0]?.toUpperCase()}
       </span>
       <span className="min-w-0 flex-1 truncate text-xs text-neutral-400">{email}</span>
+      <ThemeToggle className="flex h-7 w-7 flex-none items-center justify-center rounded-lg text-neutral-500 transition hover:bg-surface hover:text-white" />
       <button
         onClick={onSignOut}
         title="Log out"
@@ -254,6 +265,12 @@ export default function ChatPage() {
   const [directConnecting, setDirectConnecting] = useState(false);
   const [directMessages, setDirectMessages] = useState<ChatMessage[]>([]);
 
+  const [liveTypingUsers, setLiveTypingUsers] = useState<string[]>([]);
+  const [directPartnerTyping, setDirectPartnerTyping] = useState(false);
+  const [randomPartnerTyping, setRandomPartnerTyping] = useState(false);
+  const [directLastReadAt, setDirectLastReadAt] = useState<string | null>(null);
+  const [blockedEmails, setBlockedEmails] = useState<string[]>([]);
+
   const socketRef = useRef<ChatSocket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -263,6 +280,45 @@ export default function ChatPage() {
   const directConnectingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusRef = useRef<Status>("idle");
   const signingOutRef = useRef(false);
+
+  // Outgoing "I'm typing" signal: collapsed to one emit per burst of
+  // keystrokes, with a stop-typing emitted after a pause or on send.
+  const isTypingRef = useRef(false);
+  const typingStopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Incoming typing indicators expire on their own after a few seconds —
+  // a safety net in case a stop-typing event never arrives (dropped
+  // connection, tab closed mid-keystroke, etc).
+  const liveTypingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const directTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const randomTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Tab-title unread badge: counts messages that arrived while this tab
+  // wasn't the active one, resets the moment it becomes active again.
+  const unreadTitleCountRef = useRef(0);
+  const baseTitleRef = useRef("Stranger Chat");
+
+  useEffect(() => {
+    baseTitleRef.current = document.title;
+    function handleVisibilityChange() {
+      if (!document.hidden) {
+        unreadTitleCountRef.current = 0;
+        document.title = baseTitleRef.current;
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.title = baseTitleRef.current;
+    };
+  }, []);
+
+  function notifyNewMessage() {
+    if (!document.hidden) return;
+    unreadTitleCountRef.current += 1;
+    document.title = `(${unreadTitleCountRef.current}) ${baseTitleRef.current}`;
+    playNotificationPing();
+  }
 
   useEffect(() => {
     statusRef.current = status;
@@ -283,10 +339,16 @@ export default function ChatPage() {
   // actually opts in. Just make sure whatever got acquired is released
   // when the page unmounts.
   useEffect(() => {
+    const liveTypingTimeouts = liveTypingTimeoutsRef.current;
     return () => {
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
       if (directConnectingTimeoutRef.current) clearTimeout(directConnectingTimeoutRef.current);
+      if (typingStopTimeoutRef.current) clearTimeout(typingStopTimeoutRef.current);
+      if (directTypingTimeoutRef.current) clearTimeout(directTypingTimeoutRef.current);
+      if (randomTypingTimeoutRef.current) clearTimeout(randomTypingTimeoutRef.current);
+      liveTypingTimeouts.forEach((t) => clearTimeout(t));
+      liveTypingTimeouts.clear();
     };
   }, []);
 
@@ -347,6 +409,56 @@ export default function ChatPage() {
       directConnectingTimeoutRef.current = null;
     }
     setDirectConnecting(false);
+  }
+
+  function emitTypingStart(scope: TypingScope) {
+    if (scope === "live") {
+      socketRef.current?.emit("live-chat-typing");
+    } else if (scope === "direct") {
+      if (directConversationIdRef.current) {
+        socketRef.current?.emit("direct-typing", { conversationId: directConversationIdRef.current });
+      }
+    } else {
+      socketRef.current?.emit("typing");
+    }
+  }
+
+  function emitTypingStop(scope: TypingScope) {
+    if (scope === "live") {
+      socketRef.current?.emit("live-chat-stop-typing");
+    } else if (scope === "direct") {
+      if (directConversationIdRef.current) {
+        socketRef.current?.emit("direct-stop-typing", { conversationId: directConversationIdRef.current });
+      }
+    } else {
+      socketRef.current?.emit("stop-typing");
+    }
+  }
+
+  // Collapses a burst of keystrokes into a single "typing" emit, then
+  // auto-emits "stop-typing" after a pause so a sender who wanders off
+  // mid-sentence doesn't leave the other side stuck seeing "is typing…".
+  function notifyTyping(scope: TypingScope) {
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      emitTypingStart(scope);
+    }
+    if (typingStopTimeoutRef.current) clearTimeout(typingStopTimeoutRef.current);
+    typingStopTimeoutRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+      emitTypingStop(scope);
+    }, 2000);
+  }
+
+  function stopTyping(scope: TypingScope) {
+    if (typingStopTimeoutRef.current) {
+      clearTimeout(typingStopTimeoutRef.current);
+      typingStopTimeoutRef.current = null;
+    }
+    if (isTypingRef.current) {
+      isTypingRef.current = false;
+      emitTypingStop(scope);
+    }
   }
 
   const cleanupPeerConnection = useCallback(() => {
@@ -423,11 +535,40 @@ export default function ChatPage() {
         ...prev,
         { text, at, fromSelf: fromEmail === user.email, fromEmail, media, gifUrl },
       ]);
+      if (fromEmail !== user.email) notifyNewMessage();
     });
 
     socket.on("live-chat-online-count", ({ count, users }) => {
       setLiveOnlineCount(count);
       setLiveOnlineUsers(users);
+    });
+
+    socket.on("blocked-users-list", ({ emails }) => {
+      setBlockedEmails(emails);
+    });
+
+    socket.on("live-chat-typing", ({ fromEmail }) => {
+      setLiveTypingUsers((prev) => (prev.includes(fromEmail) ? prev : [...prev, fromEmail]));
+      const timeouts = liveTypingTimeoutsRef.current;
+      const existing = timeouts.get(fromEmail);
+      if (existing) clearTimeout(existing);
+      timeouts.set(
+        fromEmail,
+        setTimeout(() => {
+          setLiveTypingUsers((prev) => prev.filter((e) => e !== fromEmail));
+          timeouts.delete(fromEmail);
+        }, 4000)
+      );
+    });
+
+    socket.on("live-chat-stop-typing", ({ fromEmail }) => {
+      setLiveTypingUsers((prev) => prev.filter((e) => e !== fromEmail));
+      const timeouts = liveTypingTimeoutsRef.current;
+      const existing = timeouts.get(fromEmail);
+      if (existing) {
+        clearTimeout(existing);
+        timeouts.delete(fromEmail);
+      }
     });
 
     socket.on("waiting", () => {
@@ -440,6 +581,7 @@ export default function ChatPage() {
       setPartnerEmail(partner.email);
       setMessages([]);
       setStatusMessage(null);
+      setRandomPartnerTyping(false);
       setupPeerConnection(socket, initiator);
     });
 
@@ -448,10 +590,30 @@ export default function ChatPage() {
       setStatus("idle");
       setPartnerEmail(null);
       setStatusMessage(REASON_MESSAGES[reason] || "Chat ended.");
+      setRandomPartnerTyping(false);
+      if (randomTypingTimeoutRef.current) {
+        clearTimeout(randomTypingTimeoutRef.current);
+        randomTypingTimeoutRef.current = null;
+      }
     });
 
     socket.on("receive-message", ({ text, media, gifUrl, at }) => {
       setMessages((prev) => [...prev, { text, media, gifUrl, at, fromSelf: false }]);
+      notifyNewMessage();
+    });
+
+    socket.on("typing", () => {
+      setRandomPartnerTyping(true);
+      if (randomTypingTimeoutRef.current) clearTimeout(randomTypingTimeoutRef.current);
+      randomTypingTimeoutRef.current = setTimeout(() => setRandomPartnerTyping(false), 4000);
+    });
+
+    socket.on("stop-typing", () => {
+      setRandomPartnerTyping(false);
+      if (randomTypingTimeoutRef.current) {
+        clearTimeout(randomTypingTimeoutRef.current);
+        randomTypingTimeoutRef.current = null;
+      }
     });
 
     socket.on("webrtc-offer", async ({ sdp }) => {
@@ -505,6 +667,12 @@ export default function ChatPage() {
       setDirectError(null);
       setDirectConversationId(conversationId);
       setDirectPartnerEmail(partner.email);
+      setDirectPartnerTyping(false);
+      if (directTypingTimeoutRef.current) {
+        clearTimeout(directTypingTimeoutRef.current);
+        directTypingTimeoutRef.current = null;
+      }
+      setDirectLastReadAt(null);
       setUnreadEntries((prev) => prev.filter((e) => e.otherEmail !== partner.email));
       setDirectMessages(
         messages.map((m) => ({
@@ -520,10 +688,38 @@ export default function ChatPage() {
     socket.on("direct-message", ({ conversationId, text, at, media, gifUrl }) => {
       if (directConversationIdRef.current !== conversationId) return;
       setDirectMessages((prev) => [...prev, { text, media, gifUrl, at, fromSelf: false }]);
+      notifyNewMessage();
+    });
+
+    socket.on("direct-typing", ({ conversationId }) => {
+      if (directConversationIdRef.current !== conversationId) return;
+      setDirectPartnerTyping(true);
+      if (directTypingTimeoutRef.current) clearTimeout(directTypingTimeoutRef.current);
+      directTypingTimeoutRef.current = setTimeout(() => setDirectPartnerTyping(false), 4000);
+    });
+
+    socket.on("direct-stop-typing", ({ conversationId }) => {
+      if (directConversationIdRef.current !== conversationId) return;
+      setDirectPartnerTyping(false);
+      if (directTypingTimeoutRef.current) {
+        clearTimeout(directTypingTimeoutRef.current);
+        directTypingTimeoutRef.current = null;
+      }
+    });
+
+    socket.on("direct-messages-read", ({ conversationId, readAt }) => {
+      if (directConversationIdRef.current !== conversationId) return;
+      setDirectLastReadAt((prev) => (!prev || readAt > prev ? readAt : prev));
     });
 
     socket.on("direct-chat-error", ({ message }) => {
       stopDirectConnecting();
+      setDirectError(message);
+    });
+
+    // Generic errors from the current room (e.g. trying to message a user
+    // that's since been blocked either direction) — surface the same way.
+    socket.on("error", ({ message }) => {
       setDirectError(message);
     });
 
@@ -537,6 +733,7 @@ export default function ChatPage() {
         next.push({ conversationId, otherEmail: fromEmail, count });
         return next;
       });
+      notifyNewMessage();
     });
 
     return () => {
@@ -554,6 +751,8 @@ export default function ChatPage() {
   }
 
   function handleSkip() {
+    stopTyping("random");
+    setRandomPartnerTyping(false);
     socketRef.current?.emit("skip");
     cleanupPeerConnection();
     setStatus("waiting");
@@ -562,6 +761,8 @@ export default function ChatPage() {
   }
 
   function handleEnd() {
+    stopTyping("random");
+    setRandomPartnerTyping(false);
     socketRef.current?.emit("end-chat");
     cleanupPeerConnection();
     setStatus("idle");
@@ -584,6 +785,7 @@ export default function ChatPage() {
   }
 
   function handleSend({ text, media, gifUrl }: ChatSendInput) {
+    stopTyping("random");
     socketRef.current?.emit("send-message", { text, media, gifUrl });
     setMessages((prev) => [
       ...prev,
@@ -592,6 +794,7 @@ export default function ChatPage() {
   }
 
   function handleSendLive({ text, media, gifUrl }: ChatSendInput) {
+    stopTyping("live");
     // No optimistic append: the server broadcasts back to every socket in
     // the lobby, sender included, so appending locally would double it up.
     socketRef.current?.emit("live-chat-message", { text, media, gifUrl });
@@ -607,7 +810,18 @@ export default function ChatPage() {
     socketRef.current?.emit("direct-chat-open", { conversationId });
   }
 
+  function handleBlockPartner() {
+    if (!directPartnerEmail) return;
+    socketRef.current?.emit("block-user", { email: directPartnerEmail });
+  }
+
+  function handleUnblockPartner() {
+    if (!directPartnerEmail) return;
+    socketRef.current?.emit("unblock-user", { email: directPartnerEmail });
+  }
+
   function handleCloseDirect() {
+    stopTyping("direct");
     if (directConversationId) {
       socketRef.current?.emit("direct-chat-leave", { conversationId: directConversationId });
     }
@@ -616,10 +830,17 @@ export default function ChatPage() {
     setDirectPartnerEmail(null);
     setDirectMessages([]);
     setDirectError(null);
+    setDirectPartnerTyping(false);
+    if (directTypingTimeoutRef.current) {
+      clearTimeout(directTypingTimeoutRef.current);
+      directTypingTimeoutRef.current = null;
+    }
+    setDirectLastReadAt(null);
   }
 
   function handleSendDirect({ text, media, gifUrl }: ChatSendInput) {
     if (!directConversationId) return;
+    stopTyping("direct");
     socketRef.current?.emit("direct-message", { conversationId: directConversationId, text, media, gifUrl });
     setDirectMessages((prev) => [
       ...prev,
@@ -645,6 +866,11 @@ export default function ChatPage() {
   const inDirectChat = directConversationId !== null;
   const inRandomChat = status === "matched";
   const totalUnread = unreadEntries.reduce((sum, e) => sum + e.count, 0);
+  const isPartnerBlocked = directPartnerEmail ? blockedEmails.includes(directPartnerEmail) : false;
+
+  const lastOwnDirectMessage = [...directMessages].reverse().find((m) => m.fromSelf);
+  const directLastReadLabel =
+    lastOwnDirectMessage && directLastReadAt && lastOwnDirectMessage.at <= directLastReadAt ? "Seen" : null;
 
   const connectedPill = (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
@@ -719,6 +945,7 @@ export default function ChatPage() {
             </h1>
             <div className="flex items-center gap-2">
               {headerPill}
+              <ThemeToggle className="flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-border-subtle bg-surface text-neutral-400 transition hover:border-neutral-600 hover:text-white lg:hidden" />
               <button
                 onClick={handleSignOut}
                 className="rounded-lg border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-neutral-600 hover:text-white lg:hidden"
@@ -742,29 +969,54 @@ export default function ChatPage() {
 
         {section === "live" ? (
           <ChatPanel
-            messages={liveMessages}
+            messages={liveMessages.filter((m) => !m.fromEmail || !blockedEmails.includes(m.fromEmail))}
             onSend={handleSendLive}
             disabled={false}
             placeholder="Message the room…"
+            typingLabel={formatTypingLabel(liveTypingUsers)}
+            onTyping={() => notifyTyping("live")}
           />
         ) : section === "personal" ? (
           inDirectChat ? (
             <>
-              <ChatPanel messages={directMessages} onSend={handleSendDirect} disabled={false} />
-              <button
-                onClick={handleCloseDirect}
-                className="rounded-lg border border-border-subtle bg-surface px-4 py-2 text-sm font-medium transition hover:border-neutral-600"
-              >
-                Close chat
-              </button>
+              {directError && <p className="px-1 text-xs text-red-400">{directError}</p>}
+              <ChatPanel
+                messages={directMessages}
+                onSend={handleSendDirect}
+                disabled={isPartnerBlocked}
+                placeholder={isPartnerBlocked ? "You've blocked this user" : "Type a message…"}
+                typingLabel={directPartnerTyping ? `${directPartnerEmail} is typing…` : null}
+                onTyping={() => notifyTyping("direct")}
+                lastReadLabel={directLastReadLabel}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCloseDirect}
+                  className="flex-1 rounded-lg border border-border-subtle bg-surface px-4 py-2 text-sm font-medium transition hover:border-neutral-600"
+                >
+                  Close chat
+                </button>
+                <button
+                  onClick={isPartnerBlocked ? handleUnblockPartner : handleBlockPartner}
+                  className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
+                    isPartnerBlocked
+                      ? "border-accent/30 bg-accent/10 text-accent hover:border-accent/50"
+                      : "border-border-subtle bg-surface text-red-400 hover:border-red-500/50"
+                  }`}
+                >
+                  {isPartnerBlocked ? "Unblock" : "Block"}
+                </button>
+              </div>
             </>
           ) : (
             <>
               {directConnecting && <p className="px-1 text-xs text-neutral-500">Opening chat…</p>}
               {directError && <p className="px-1 text-xs text-red-400">{directError}</p>}
               <PersonalChatsView
-                onlineEmails={liveOnlineUsers.filter((email) => email !== user.email)}
-                unreadEntries={unreadEntries}
+                onlineEmails={liveOnlineUsers.filter(
+                  (email) => email !== user.email && !blockedEmails.includes(email)
+                )}
+                unreadEntries={unreadEntries.filter((e) => !blockedEmails.includes(e.otherEmail))}
                 onStartChat={handleRequestDirectChat}
                 onOpenChat={handleOpenConversation}
               />
@@ -776,7 +1028,13 @@ export default function ChatPage() {
               <VideoPanel localStream={localStream} remoteStream={remoteStream} cameraError={cameraError} />
               <ChatControls onSkip={handleSkip} onEnd={handleEnd} onReport={handleReport} />
             </div>
-            <ChatPanel messages={messages} onSend={handleSend} disabled={false} />
+            <ChatPanel
+              messages={messages}
+              onSend={handleSend}
+              disabled={false}
+              typingLabel={randomPartnerTyping ? `${partnerEmail ?? "Stranger"} is typing…` : null}
+              onTyping={() => notifyTyping("random")}
+            />
           </div>
         ) : (
           <>

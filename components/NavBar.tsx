@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import ThemeToggle from "./ThemeToggle";
 
 export default function NavBar() {
   const { user, signOut } = useAuth();
@@ -30,22 +31,25 @@ export default function NavBar() {
           <span className="h-2 w-2 rounded-full bg-accent shadow-[0_0_12px_var(--accent)]" />
           Stranger Chat
         </Link>
-        {user && (
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-sm text-neutral-400">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/15 text-xs font-medium text-accent">
-                {user.email[0]?.toUpperCase()}
-              </span>
-              <span className="hidden sm:inline">{user.email}</span>
-            </div>
-            <button
-              onClick={handleSignOut}
-              className="rounded-md border border-border-subtle bg-surface px-3 py-1.5 text-sm font-medium text-neutral-300 transition hover:border-neutral-600 hover:text-white"
-            >
-              Log out
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {user && (
+            <>
+              <div className="flex items-center gap-2 text-sm text-neutral-400">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/15 text-xs font-medium text-accent">
+                  {user.email[0]?.toUpperCase()}
+                </span>
+                <span className="hidden sm:inline">{user.email}</span>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="rounded-md border border-border-subtle bg-surface px-3 py-1.5 text-sm font-medium text-neutral-300 transition hover:border-neutral-600 hover:text-white"
+              >
+                Log out
+              </button>
+            </>
+          )}
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   );
