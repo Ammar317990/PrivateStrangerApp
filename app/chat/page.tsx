@@ -262,13 +262,17 @@ export default function ChatPage() {
   const directConversationIdRef = useRef<string | null>(null);
   const directConnectingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusRef = useRef<Status>("idle");
+  const signingOutRef = useRef(false);
 
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
 
   useEffect(() => {
-    if (!loading && !user) {
+    // Skip when we're already navigating away because of an explicit sign-out
+    // (handleSignOut) — otherwise this races that navigation and can win,
+    // landing on /login instead of the intended destination.
+    if (!loading && !user && !signingOutRef.current) {
       router.replace("/login");
     }
   }, [loading, user, router]);
@@ -570,9 +574,13 @@ export default function ChatPage() {
     socketRef.current?.emit("report-user", {});
   }
 
-  async function handleSignOut() {
-    await signOut();
+  function handleSignOut() {
+    // Navigate first so the page is already leaving before `user` flips to
+    // null — otherwise this component's own "not signed in" fallback flashes
+    // for a frame while still mounted, which reads as a broken blank screen.
+    signingOutRef.current = true;
     router.push("/");
+    void signOut();
   }
 
   function handleSend({ text, media, gifUrl }: ChatSendInput) {
@@ -619,12 +627,19 @@ export default function ChatPage() {
     ]);
   }
 
-  if (loading || !user) {
+  if (loading) {
     return (
       <main className="flex flex-1 items-center justify-center text-neutral-400">
         Loading…
       </main>
     );
+  }
+
+  // We know for sure there's no user (just signed out, or session expired) —
+  // the effect above is already navigating away, so render nothing rather
+  // than flashing a "Loading…" state for a page we're about to leave.
+  if (!user) {
+    return null;
   }
 
   const inDirectChat = directConversationId !== null;

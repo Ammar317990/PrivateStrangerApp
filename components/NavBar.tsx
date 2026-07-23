@@ -9,9 +9,9 @@ export default function NavBar() {
   const router = useRouter();
   const pathname = usePathname();
 
-  async function handleSignOut() {
-    await signOut();
+  function handleSignOut() {
     router.push("/");
+    void signOut();
   }
 
   // The chat page is a full-bleed dashboard with its own sidebar (brand,
