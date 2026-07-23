@@ -253,7 +253,6 @@ export default function ChatPage() {
   const [directError, setDirectError] = useState<string | null>(null);
   const [directConnecting, setDirectConnecting] = useState(false);
   const [directMessages, setDirectMessages] = useState<ChatMessage[]>([]);
-  const [iceServersReady, setIceServersReady] = useState(false);
 
   const socketRef = useRef<ChatSocket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -267,20 +266,6 @@ export default function ChatPage() {
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
-
-  useEffect(() => {
-    if (!user) return;
-    getTurnCredentials()
-      .then(({ iceServers }) => {
-        iceServersRef.current = iceServers;
-      })
-      .catch(() => {
-        // Leave iceServersRef unset — createPeerConnection falls back to STUN-only.
-      })
-      .finally(() => {
-        setIceServersReady(true);
-      });
-  }, [user]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -324,6 +309,20 @@ export default function ChatPage() {
     }
   }
 
+  // Fetched on demand (first "Find a stranger" click) instead of on every
+  // /chat page load — most visits are Live Chat/Personal Chats and never
+  // touch Video Chat, so there's no reason to hit the TURN provider's API
+  // every single time.
+  async function ensureIceServers() {
+    if (iceServersRef.current !== undefined) return;
+    try {
+      const { iceServers } = await getTurnCredentials();
+      iceServersRef.current = iceServers;
+    } catch {
+      // Leave iceServersRef unset — createPeerConnection falls back to STUN-only.
+    }
+  }
+
   // Guards against ever getting stuck on "Opening chat…"/"Sending
   // request…" — if the server doesn't answer (dropped event, deploy lag,
   // an edge case we didn't anticipate) within a few seconds, this clears
@@ -361,12 +360,6 @@ export default function ChatPage() {
   const setupPeerConnection = useCallback((socket: ChatSocket, initiator: boolean) => {
     cleanupPeerConnection();
 
-    console.log("[webrtc] creating peer connection", {
-      iceServers: iceServersRef.current,
-      hasLocalStream: !!localStreamRef.current,
-      localTracks: localStreamRef.current?.getTracks().map((t) => t.kind),
-    });
-
     const pc = createPeerConnection(iceServersRef.current);
     pcRef.current = pc;
 
@@ -376,21 +369,11 @@ export default function ChatPage() {
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log("[webrtc] local ice candidate", event.candidate.type, event.candidate.protocol);
         socket.emit("webrtc-ice-candidate", { candidate: event.candidate.toJSON() });
       }
     };
 
-    pc.oniceconnectionstatechange = () => {
-      console.log("[webrtc] iceConnectionState:", pc.iceConnectionState);
-    };
-
-    pc.onicegatheringstatechange = () => {
-      console.log("[webrtc] iceGatheringState:", pc.iceGatheringState);
-    };
-
     pc.ontrack = (event) => {
-      console.log("[webrtc] ontrack fired", event.track.kind);
       setRemoteStream(event.streams[0]);
     };
 
@@ -468,14 +451,12 @@ export default function ChatPage() {
     });
 
     socket.on("webrtc-offer", async ({ sdp }) => {
-      console.log("[webrtc] received offer, pc exists:", !!pcRef.current);
       const pc = pcRef.current;
       if (!pc) return;
       await pc.setRemoteDescription(sdp);
       for (const candidate of pendingCandidatesRef.current) {
         await pc.addIceCandidate(candidate);
       }
-      console.log("[webrtc] flushed pending candidates:", pendingCandidatesRef.current.length);
       pendingCandidatesRef.current = [];
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -485,21 +466,17 @@ export default function ChatPage() {
     });
 
     socket.on("webrtc-answer", async ({ sdp }) => {
-      console.log("[webrtc] received answer, pc exists:", !!pcRef.current);
       const pc = pcRef.current;
       if (!pc) return;
       await pc.setRemoteDescription(sdp);
       for (const candidate of pendingCandidatesRef.current) {
         await pc.addIceCandidate(candidate);
       }
-      console.log("[webrtc] flushed pending candidates:", pendingCandidatesRef.current.length);
       pendingCandidatesRef.current = [];
     });
 
     socket.on("webrtc-ice-candidate", async ({ candidate }) => {
       const pc = pcRef.current;
-      const typeMatch = /typ (\w+)/.exec(candidate?.candidate || "");
-      console.log("[webrtc] received remote ice candidate", typeMatch?.[1], "pc exists:", !!pc, "remoteDescription set:", !!pc?.remoteDescription);
       if (!pc) return;
       if (pc.remoteDescription) {
         await pc.addIceCandidate(candidate).catch((err) => console.error("[webrtc] addIceCandidate failed:", err));
@@ -567,7 +544,7 @@ export default function ChatPage() {
   }, [user]);
 
   async function handleStart() {
-    await ensureCamera();
+    await Promise.all([ensureCamera(), ensureIceServers()]);
     socketRef.current?.emit("join-queue");
     setStatus("waiting");
   }
@@ -654,17 +631,21 @@ export default function ChatPage() {
   const inRandomChat = status === "matched";
   const totalUnread = unreadEntries.reduce((sum, e) => sum + e.count, 0);
 
+  const connectedPill = (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
+      <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+      Connected
+    </span>
+  );
+
   const videoStatusPill =
     status === "waiting" ? (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface px-2.5 py-1 text-xs font-medium text-neutral-400">
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
         Waiting
       </span>
-    ) : inRandomChat || inDirectChat ? (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
-        <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-        Connected
-      </span>
+    ) : inRandomChat ? (
+      connectedPill
     ) : null;
 
   const liveStatusPill = (
@@ -674,7 +655,11 @@ export default function ChatPage() {
     </span>
   );
 
-  const headerPill = inDirectChat || section === "video" ? videoStatusPill : section === "live" ? liveStatusPill : null;
+  const headerPill =
+    section === "video" ? videoStatusPill
+    : section === "live" ? liveStatusPill
+    : section === "personal" && inDirectChat ? connectedPill
+    : null;
 
   return (
     <div className="flex h-full w-full flex-1">
@@ -707,15 +692,15 @@ export default function ChatPage() {
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h1 className="text-lg font-semibold">
-              {inDirectChat
-                ? `Chatting with ${directPartnerEmail}`
-                : section === "live"
-                  ? "Live Chat"
-                  : section === "personal"
-                    ? "Personal Chats"
-                    : inRandomChat
-                      ? `Chatting with ${partnerEmail ?? "Stranger"}`
-                      : "Video Chat"}
+              {section === "live"
+                ? "Live Chat"
+                : section === "personal"
+                  ? inDirectChat
+                    ? `Chatting with ${directPartnerEmail}`
+                    : "Personal Chats"
+                  : inRandomChat
+                    ? `Chatting with ${partnerEmail ?? "Stranger"}`
+                    : "Video Chat"}
             </h1>
             <div className="flex items-center gap-2">
               {headerPill}
@@ -740,17 +725,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {inDirectChat ? (
-          <>
-            <ChatPanel messages={directMessages} onSend={handleSendDirect} disabled={false} />
-            <button
-              onClick={handleCloseDirect}
-              className="rounded-lg border border-border-subtle bg-surface px-4 py-2 text-sm font-medium transition hover:border-neutral-600"
-            >
-              Close chat
-            </button>
-          </>
-        ) : section === "live" ? (
+        {section === "live" ? (
           <ChatPanel
             messages={liveMessages}
             onSend={handleSendLive}
@@ -758,16 +733,28 @@ export default function ChatPage() {
             placeholder="Message the room…"
           />
         ) : section === "personal" ? (
-          <>
-            {directConnecting && <p className="px-1 text-xs text-neutral-500">Opening chat…</p>}
-            {directError && <p className="px-1 text-xs text-red-400">{directError}</p>}
-            <PersonalChatsView
-              onlineEmails={liveOnlineUsers.filter((email) => email !== user.email)}
-              unreadEntries={unreadEntries}
-              onStartChat={handleRequestDirectChat}
-              onOpenChat={handleOpenConversation}
-            />
-          </>
+          inDirectChat ? (
+            <>
+              <ChatPanel messages={directMessages} onSend={handleSendDirect} disabled={false} />
+              <button
+                onClick={handleCloseDirect}
+                className="rounded-lg border border-border-subtle bg-surface px-4 py-2 text-sm font-medium transition hover:border-neutral-600"
+              >
+                Close chat
+              </button>
+            </>
+          ) : (
+            <>
+              {directConnecting && <p className="px-1 text-xs text-neutral-500">Opening chat…</p>}
+              {directError && <p className="px-1 text-xs text-red-400">{directError}</p>}
+              <PersonalChatsView
+                onlineEmails={liveOnlineUsers.filter((email) => email !== user.email)}
+                unreadEntries={unreadEntries}
+                onStartChat={handleRequestDirectChat}
+                onOpenChat={handleOpenConversation}
+              />
+            </>
+          )
         ) : inRandomChat ? (
           <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
             <div className="flex flex-col gap-3">
@@ -783,8 +770,7 @@ export default function ChatPage() {
             )}
             <MatchmakingOverlay
               status={status === "waiting" ? "waiting" : "idle"}
-              statusMessage={iceServersReady ? statusMessage : "Preparing connection…"}
-              disabled={!iceServersReady}
+              statusMessage={statusMessage}
               onStart={handleStart}
             />
             <DirectChatStarter

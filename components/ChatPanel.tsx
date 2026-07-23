@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { getMediaUrl, uploadMedia, ApiError, type MediaKind, type MediaMode } from "@/lib/api";
 import EmojiPicker from "@/components/EmojiPicker";
 import GifPicker from "@/components/GifPicker";
+import ImageLightbox from "@/components/ImageLightbox";
 
 export type MediaRef = { id: string; kind: MediaKind; mode: MediaMode; viewed?: boolean };
 
@@ -131,6 +132,7 @@ function formatDuration(totalSeconds: number) {
 }
 
 function GifBubble({ url, fromSelf }: { url: string; fromSelf: boolean }) {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   return (
     <div
       className={`w-56 overflow-hidden rounded-2xl border border-border-subtle bg-surface ${
@@ -138,7 +140,13 @@ function GifBubble({ url, fromSelf }: { url: string; fromSelf: boolean }) {
       }`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt="GIF" className="max-h-64 w-full object-cover" />
+      <img
+        src={url}
+        alt="GIF"
+        onClick={() => setLightboxOpen(true)}
+        className="max-h-64 w-full cursor-zoom-in object-cover"
+      />
+      {lightboxOpen && <ImageLightbox src={url} onClose={() => setLightboxOpen(false)} />}
     </div>
   );
 }
@@ -157,6 +165,7 @@ function MediaBubble({
   onReveal: () => void;
 }) {
   const [expired, setExpired] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const isVideo = media.kind === "video";
   const isAudio = media.kind === "audio";
@@ -299,7 +308,8 @@ function MediaBubble({
         <img
           src={src}
           alt=""
-          className="aspect-[4/3] max-h-64 w-full object-cover"
+          onClick={() => setLightboxOpen(true)}
+          className="aspect-[4/3] max-h-64 w-full cursor-zoom-in object-cover"
           onError={() => isOnce && setExpired(true)}
         />
       )}
@@ -322,6 +332,7 @@ function MediaBubble({
           </>
         )}
       </div>
+      {!isVideo && lightboxOpen && <ImageLightbox src={src} onClose={() => setLightboxOpen(false)} />}
     </div>
   );
 }
