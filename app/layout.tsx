@@ -36,6 +36,8 @@ const SITE_URL = "https://private-stranger-app.vercel.app";
 const SITE_TITLE = "Stranger Chat";
 const SITE_DESCRIPTION = "Talk to random people over text and video — live, no sign-up hassle.";
 
+
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: SITE_TITLE,

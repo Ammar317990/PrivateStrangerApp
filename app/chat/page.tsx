@@ -525,15 +525,14 @@ export default function ChatPage() {
           fromSelf: m.fromEmail === user.email,
           fromEmail: m.fromEmail,
           media: m.media,
-          gifUrl: m.gifUrl,
         }))
       );
     });
 
-    socket.on("live-chat-message", ({ text, at, fromEmail, media, gifUrl }) => {
+    socket.on("live-chat-message", ({ text, at, fromEmail, media }) => {
       setLiveMessages((prev) => [
         ...prev,
-        { text, at, fromSelf: fromEmail === user.email, fromEmail, media, gifUrl },
+        { text, at, fromSelf: fromEmail === user.email, fromEmail, media },
       ]);
       if (fromEmail !== user.email) notifyNewMessage();
     });
@@ -597,8 +596,8 @@ export default function ChatPage() {
       }
     });
 
-    socket.on("receive-message", ({ text, media, gifUrl, at }) => {
-      setMessages((prev) => [...prev, { text, media, gifUrl, at, fromSelf: false }]);
+    socket.on("receive-message", ({ text, media, at }) => {
+      setMessages((prev) => [...prev, { text, media, at, fromSelf: false }]);
       notifyNewMessage();
     });
 
@@ -680,14 +679,13 @@ export default function ChatPage() {
           at: m.at,
           fromSelf: m.fromEmail === user.email,
           media: m.media,
-          gifUrl: m.gifUrl,
         }))
       );
     });
 
-    socket.on("direct-message", ({ conversationId, text, at, media, gifUrl }) => {
+    socket.on("direct-message", ({ conversationId, text, at, media }) => {
       if (directConversationIdRef.current !== conversationId) return;
-      setDirectMessages((prev) => [...prev, { text, media, gifUrl, at, fromSelf: false }]);
+      setDirectMessages((prev) => [...prev, { text, media, at, fromSelf: false }]);
       notifyNewMessage();
     });
 
@@ -784,20 +782,20 @@ export default function ChatPage() {
     void signOut();
   }
 
-  function handleSend({ text, media, gifUrl }: ChatSendInput) {
+  function handleSend({ text, media }: ChatSendInput) {
     stopTyping("random");
-    socketRef.current?.emit("send-message", { text, media, gifUrl });
+    socketRef.current?.emit("send-message", { text, media });
     setMessages((prev) => [
       ...prev,
-      { text: text || "", media, gifUrl, at: new Date().toISOString(), fromSelf: true },
+      { text: text || "", media, at: new Date().toISOString(), fromSelf: true },
     ]);
   }
 
-  function handleSendLive({ text, media, gifUrl }: ChatSendInput) {
+  function handleSendLive({ text, media }: ChatSendInput) {
     stopTyping("live");
     // No optimistic append: the server broadcasts back to every socket in
     // the lobby, sender included, so appending locally would double it up.
-    socketRef.current?.emit("live-chat-message", { text, media, gifUrl });
+    socketRef.current?.emit("live-chat-message", { text, media });
   }
 
   function handleRequestDirectChat(email: string) {
@@ -838,13 +836,13 @@ export default function ChatPage() {
     setDirectLastReadAt(null);
   }
 
-  function handleSendDirect({ text, media, gifUrl }: ChatSendInput) {
+  function handleSendDirect({ text, media }: ChatSendInput) {
     if (!directConversationId) return;
     stopTyping("direct");
-    socketRef.current?.emit("direct-message", { conversationId: directConversationId, text, media, gifUrl });
+    socketRef.current?.emit("direct-message", { conversationId: directConversationId, text, media });
     setDirectMessages((prev) => [
       ...prev,
-      { text: text || "", media, gifUrl, at: new Date().toISOString(), fromSelf: true },
+      { text: text || "", media, at: new Date().toISOString(), fromSelf: true },
     ]);
   }
 

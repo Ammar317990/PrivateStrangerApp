@@ -9,7 +9,7 @@ export type ServerToClientEvents = {
   waiting: () => void;
   matched: (data: { roomId: string; initiator: boolean; partner: { email: string } }) => void;
   "partner-left": (data: { reason: "skipped" | "disconnected" | "ended" | "reported" }) => void;
-  "receive-message": (data: { text: string; media?: MediaRef; gifUrl?: string; at: string }) => void;
+  "receive-message": (data: { text: string; media?: MediaRef; at: string }) => void;
   "webrtc-offer": (data: { sdp: RTCSessionDescriptionInit }) => void;
   "webrtc-answer": (data: { sdp: RTCSessionDescriptionInit }) => void;
   "webrtc-ice-candidate": (data: { candidate: RTCIceCandidateInit }) => void;
@@ -18,7 +18,7 @@ export type ServerToClientEvents = {
   "direct-chat-started": (data: {
     conversationId: string;
     partner: { email: string };
-    messages: { text: string; media?: MediaRef; gifUrl?: string; at: string; fromEmail: string }[];
+    messages: { text: string; media?: MediaRef; at: string; fromEmail: string }[];
   }) => void;
   "direct-chat-error": (data: { message: string }) => void;
   "direct-chat-unread-list": (data: {
@@ -29,17 +29,15 @@ export type ServerToClientEvents = {
     conversationId: string;
     text: string;
     media?: MediaRef;
-    gifUrl?: string;
     at: string;
     fromEmail: string;
   }) => void;
   "live-chat-joined": (data: {
-    messages: { text: string; media?: MediaRef; gifUrl?: string; at: string; fromEmail: string }[];
+    messages: { text: string; media?: MediaRef; at: string; fromEmail: string }[];
   }) => void;
   "live-chat-message": (data: {
     text: string;
     media?: MediaRef;
-    gifUrl?: string;
     at: string;
     fromEmail: string;
   }) => void;
@@ -58,7 +56,7 @@ export type ClientToServerEvents = {
   "join-queue": () => void;
   skip: () => void;
   "end-chat": () => void;
-  "send-message": (data: { text?: string; media?: OutgoingMedia; gifUrl?: string }) => void;
+  "send-message": (data: { text?: string; media?: OutgoingMedia }) => void;
   "webrtc-offer": (data: { sdp: RTCSessionDescriptionInit }) => void;
   "webrtc-answer": (data: { sdp: RTCSessionDescriptionInit }) => void;
   "webrtc-ice-candidate": (data: { candidate: RTCIceCandidateInit }) => void;
@@ -69,10 +67,9 @@ export type ClientToServerEvents = {
     conversationId: string;
     text?: string;
     media?: OutgoingMedia;
-    gifUrl?: string;
   }) => void;
   "direct-chat-leave": (data: { conversationId: string }) => void;
-  "live-chat-message": (data: { text?: string; media?: OutgoingMedia; gifUrl?: string }) => void;
+  "live-chat-message": (data: { text?: string; media?: OutgoingMedia }) => void;
   "live-chat-typing": () => void;
   "live-chat-stop-typing": () => void;
   "direct-typing": (data: { conversationId: string }) => void;

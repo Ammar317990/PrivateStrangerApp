@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getMediaUrl, uploadMedia, ApiError, type MediaKind, type MediaMode } from "@/lib/api";
 import EmojiPicker from "@/components/EmojiPicker";
-import GifPicker from "@/components/GifPicker";
 import ImageLightbox from "@/components/ImageLightbox";
 
 export type MediaRef = { id: string; kind: MediaKind; mode: MediaMode; viewed?: boolean };
@@ -14,13 +13,11 @@ export type ChatMessage = {
   fromSelf: boolean;
   fromEmail?: string;
   media?: MediaRef;
-  gifUrl?: string;
 };
 
 export type ChatSendInput = {
   text?: string;
   media?: { id: string; kind: MediaKind; mode: MediaMode };
-  gifUrl?: string;
 };
 
 const NAME_COLORS = ["#60a5fa", "#34d399", "#fb7185", "#c084fc", "#f0a020", "#2dd4bf"];
@@ -150,26 +147,6 @@ function formatDuration(totalSeconds: number) {
   const m = Math.floor(totalSeconds / 60);
   const s = totalSeconds % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function GifBubble({ url, fromSelf }: { url: string; fromSelf: boolean }) {
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  return (
-    <div
-      className={`w-56 overflow-hidden rounded-2xl border border-border-subtle bg-surface ${
-        fromSelf ? "rounded-br-sm" : "rounded-bl-sm"
-      }`}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={url}
-        alt="GIF"
-        onClick={() => setLightboxOpen(true)}
-        className="max-h-64 w-full cursor-zoom-in object-cover"
-      />
-      {lightboxOpen && <ImageLightbox src={url} onClose={() => setLightboxOpen(false)} />}
-    </div>
-  );
 }
 
 function MediaBubble({
@@ -424,11 +401,6 @@ export default function ChatPanel({
     });
   }
 
-  function sendGif(url: string) {
-    if (disabled || uploading) return;
-    onSend({ gifUrl: url });
-  }
-
   function pickFile(kind: MediaKind) {
     setUploadError(null);
     (kind === "photo" ? photoInputRef : videoInputRef).current?.click();
@@ -578,7 +550,6 @@ export default function ChatPanel({
                   onReveal={() => setRevealed((prev) => new Set(prev).add(i))}
                 />
               )}
-              {m.gifUrl && <GifBubble url={m.gifUrl} fromSelf={m.fromSelf} />}
               {m.text && (
                 <div
                   className={`max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-sm ${
@@ -732,7 +703,6 @@ export default function ChatPanel({
               >
                 <MicIcon />
               </button>
-              <GifPicker onSelect={sendGif} />
             </div>
 
             <div className="flex items-end gap-2">

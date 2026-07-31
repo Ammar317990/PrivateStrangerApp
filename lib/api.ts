@@ -97,11 +97,4 @@ export function getMediaUrl(id: string): string {
   return `${getBackendUrl()}/api/media/${id}`;
 }
 
-export type GifResult = { id: string; url: string; previewUrl: string; width: number; height: number };
-
-export function searchGifs(query: string) {
-  const q = query.trim();
-  return request<{ results: GifResult[] }>(`/api/gifs${q ? `?q=${encodeURIComponent(q)}` : ""}`);
-}
-
 export { ApiError, getBackendUrl };
