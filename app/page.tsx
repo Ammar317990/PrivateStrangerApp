@@ -3,11 +3,30 @@
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 
+const STRUCTURED_DATA = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "Stranger Chat",
+  description: "Talk to random people over text and video — live, no sign-up hassle.",
+  url: "https://private-stranger-app.vercel.app",
+  applicationCategory: "SocialNetworkingApplication",
+  operatingSystem: "Any",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+};
+
 export default function Home() {
   const { user, loading } = useAuth();
 
   return (
     <main className="relative flex flex-1 flex-col items-center justify-center gap-6 overflow-hidden px-4 text-center">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }}
+      />
       <div
         aria-hidden
         className="pointer-events-none absolute left-1/2 top-1/3 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/20 blur-3xl"

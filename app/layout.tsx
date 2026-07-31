@@ -24,14 +24,42 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+
+
+
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
+const SITE_URL = "https://private-stranger-app.vercel.app";
+const SITE_TITLE = "Stranger Chat";
+const SITE_DESCRIPTION = "Talk to random people over text and video — live, no sign-up hassle.";
+
 export const metadata: Metadata = {
-  title: "Stranger Chat",
-  description: "Talk to random people over text and video",
+  metadataBase: new URL(SITE_URL),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: "/",
+    siteName: SITE_TITLE,
+    type: "website",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 // Baseline for pre-hydration / no-JS — matched purely by the OS's
