@@ -602,7 +602,7 @@ export default function ChatPanel({
               type="button"
               onClick={cancelRecording}
               aria-label="Cancel recording"
-              className="flex-none rounded-md p-1.5 text-neutral-400 hover:bg-surface-hover hover:text-white"
+              className="flex-none rounded-md p-1.5 text-neutral-400 hover:bg-surface-hover hover:text-foreground"
             >
               <TrashIcon />
             </button>
@@ -658,7 +658,7 @@ export default function ChatPanel({
               <button
                 type="button"
                 onClick={() => setAttachedFile(null)}
-                className="flex-none rounded-md p-1.5 text-neutral-500 hover:bg-surface-hover hover:text-white"
+                className="flex-none rounded-md p-1.5 text-neutral-500 hover:bg-surface-hover hover:text-foreground"
                 aria-label="Remove attachment"
               >
                 <XIcon />
@@ -679,7 +679,7 @@ export default function ChatPanel({
                 disabled={disabled}
                 title="Attach photo"
                 aria-label="Attach photo"
-                className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] border border-transparent text-neutral-400 transition hover:border-border-subtle hover:bg-surface hover:text-white disabled:opacity-40"
+                className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] border border-transparent text-neutral-400 transition hover:border-border-subtle hover:bg-surface hover:text-foreground disabled:opacity-40"
               >
                 <PhotoIcon />
               </button>
@@ -689,7 +689,7 @@ export default function ChatPanel({
                 disabled={disabled}
                 title="Attach video"
                 aria-label="Attach video"
-                className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] border border-transparent text-neutral-400 transition hover:border-border-subtle hover:bg-surface hover:text-white disabled:opacity-40"
+                className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] border border-transparent text-neutral-400 transition hover:border-border-subtle hover:bg-surface hover:text-foreground disabled:opacity-40"
               >
                 <VideoIcon />
               </button>
@@ -699,7 +699,7 @@ export default function ChatPanel({
                 disabled={disabled}
                 title="Record a voice message"
                 aria-label="Record a voice message"
-                className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] border border-transparent text-neutral-400 transition hover:border-border-subtle hover:bg-surface hover:text-white disabled:opacity-40"
+                className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] border border-transparent text-neutral-400 transition hover:border-border-subtle hover:bg-surface hover:text-foreground disabled:opacity-40"
               >
                 <MicIcon />
               </button>

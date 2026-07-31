@@ -53,7 +53,7 @@ export default function LoginPage() {
   return (
     <main className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-10">
       <ChatBackdrop />
-      <ThemeToggle className="absolute right-4 top-4 z-10 flex h-9 w-9 flex-none items-center justify-center rounded-full border border-border-subtle bg-surface text-neutral-400 transition hover:border-neutral-600 hover:text-white" />
+      <ThemeToggle className="absolute right-4 top-4 z-10 flex h-9 w-9 flex-none items-center justify-center rounded-full border border-border-subtle bg-surface text-neutral-400 transition hover:border-neutral-600 hover:text-foreground" />
       <div
         aria-hidden
         className="pointer-events-none absolute left-1/2 top-[15%] h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/20 blur-3xl"

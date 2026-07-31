@@ -42,7 +42,7 @@ export default function NavBar() {
               </div>
               <button
                 onClick={handleSignOut}
-                className="rounded-md border border-border-subtle bg-surface px-3 py-1.5 text-sm font-medium text-neutral-300 transition hover:border-neutral-600 hover:text-white"
+                className="rounded-md border border-border-subtle bg-surface px-3 py-1.5 text-sm font-medium text-neutral-300 transition hover:border-neutral-600 hover:text-foreground"
               >
                 Log out
               </button>

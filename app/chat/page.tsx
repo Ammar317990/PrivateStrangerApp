@@ -48,7 +48,7 @@ function TabButton({
       className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
         active
           ? "bg-accent text-accent-foreground"
-          : "border border-border-subtle bg-surface text-neutral-400 hover:border-neutral-600 hover:text-white"
+          : "border border-border-subtle bg-surface text-neutral-400 hover:border-neutral-600 hover:text-foreground"
       }`}
     >
       {children}
@@ -114,12 +114,12 @@ function UserRow({ email, onSignOut }: { email: string; onSignOut: () => void })
         {email[0]?.toUpperCase()}
       </span>
       <span className="min-w-0 flex-1 truncate text-xs text-neutral-400">{email}</span>
-      <ThemeToggle className="flex h-7 w-7 flex-none items-center justify-center rounded-lg text-neutral-500 transition hover:bg-surface hover:text-white" />
+      <ThemeToggle className="flex h-7 w-7 flex-none items-center justify-center rounded-lg text-neutral-500 transition hover:bg-surface hover:text-foreground" />
       <button
         onClick={onSignOut}
         title="Log out"
         aria-label="Log out"
-        className="flex h-7 w-7 flex-none items-center justify-center rounded-lg text-neutral-500 transition hover:bg-surface hover:text-white"
+        className="flex h-7 w-7 flex-none items-center justify-center rounded-lg text-neutral-500 transition hover:bg-surface hover:text-foreground"
       >
         <LogoutIcon />
       </button>
@@ -144,7 +144,7 @@ function SidebarNavButton({
     <button
       onClick={onClick}
       className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-        active ? "bg-accent text-accent-foreground" : "text-neutral-400 hover:bg-surface hover:text-white"
+        active ? "bg-accent text-accent-foreground" : "text-neutral-400 hover:bg-surface hover:text-foreground"
       }`}
     >
       {icon}
@@ -943,10 +943,10 @@ export default function ChatPage() {
             </h1>
             <div className="flex items-center gap-2">
               {headerPill}
-              <ThemeToggle className="flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-border-subtle bg-surface text-neutral-400 transition hover:border-neutral-600 hover:text-white lg:hidden" />
+              <ThemeToggle className="flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-border-subtle bg-surface text-neutral-400 transition hover:border-neutral-600 hover:text-foreground lg:hidden" />
               <button
                 onClick={handleSignOut}
-                className="rounded-lg border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-neutral-600 hover:text-white lg:hidden"
+                className="rounded-lg border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-neutral-600 hover:text-foreground lg:hidden"
               >
                 Log out
               </button>

@@ -23,7 +23,7 @@ function MoonIcon() {
 }
 
 const DEFAULT_CLASSNAME =
-  "flex h-9 w-9 flex-none items-center justify-center rounded-full border border-border-subtle bg-surface text-neutral-400 transition hover:border-neutral-600 hover:text-white";
+  "flex h-9 w-9 flex-none items-center justify-center rounded-full border border-border-subtle bg-surface text-neutral-400 transition hover:border-neutral-600 hover:text-foreground";
 
 export default function ThemeToggle({ className }: { className?: string }) {
   const { theme, toggleTheme } = useTheme();
